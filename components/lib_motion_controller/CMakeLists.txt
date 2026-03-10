@@ -1,10 +1,9 @@
 idf_component_register(
-                       SRCS "controller/controller.cpp"
-                            "private/parser/parser.cpp"
+                       SRCS "private/src/controller.cpp"
+                            "private/src/parser.cpp"
 
-                       INCLUDE_DIRS "private/parser/"
-                                    "controller/"
-                                    "private/"
+                       INCLUDE_DIRS "private/inc/"
+                                    "inc/"
 
                        REQUIRES freertos
 )
