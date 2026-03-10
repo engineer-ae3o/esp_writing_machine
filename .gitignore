@@ -1,0 +1,29 @@
+# ESP-IDF build output
+build/
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
+
+# Managed components (downloaded by IDF component manager)
+managed_components/
+
+# Python virtual environment (created by IDF)
+.venv/
+venv/
+
+# VS Code specific
+.vscode/
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+
+# Logs
+*.log
+
+# Flash download tool temp files
+flasher_args.json

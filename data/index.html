@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP Pen Plotter</title>
+<style>
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #111111;
+    --border:    #2a2a2a;
+    --accent:    #c8f530;
+    --accent-dim:#7a9a1a;
+    --text:      #e0e0e0;
+    --muted:     #555;
+    --danger:    #ff4444;
+    --success:   #c8f530;
+    --font:      'Courier New', 'Lucida Console', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 2.5rem;
+  }
+
+  .header-tag {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: normal;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    line-height: 1.2;
+  }
+
+  .header h1 span {
+    color: var(--accent);
+  }
+
+  .header-sub {
+    margin-top: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2rem;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 1px dashed var(--border);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(200, 245, 48, 0.04);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+    display: block;
+    color: var(--muted);
+    transition: color 0.2s;
+  }
+
+  .drop-zone:hover .drop-icon,
+  .drop-zone.drag-over .drop-icon {
+    color: var(--accent);
+  }
+
+  .drop-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .drop-label strong {
+    color: var(--text);
+    font-weight: normal;
+  }
+
+  /* File info */
+  .file-info {
+    display: none;
+    background: #0f1a00;
+    border: 1px solid var(--accent-dim);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    word-break: break-all;
+  }
+
+  .file-info.visible { display: block; }
+
+  .file-info .file-size {
+    color: var(--accent-dim);
+    margin-top: 0.25rem;
+  }
+
+  /* Progress */
+  .progress-wrap {
+    display: none;
+    margin-bottom: 1.5rem;
+  }
+
+  .progress-wrap.visible { display: block; }
+
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .progress-bar-bg {
+    height: 3px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.1s linear;
+    position: relative;
+  }
+
+  .progress-bar::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 20px;
+    background: linear-gradient(90deg, transparent, rgba(200,245,48,0.6));
+  }
+
+  /* Status */
+  .status {
+    display: none;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 0.6rem 0.8rem;
+    border-left: 2px solid;
+    margin-bottom: 1.5rem;
+  }
+
+  .status.visible { display: block; }
+  .status.ok  { border-color: var(--success); color: var(--success); background: rgba(200,245,48,0.05); }
+  .status.err { border-color: var(--danger);  color: var(--danger);  background: rgba(255,68,68,0.05); }
+
+  /* Button */
+  .btn {
+    width: 100%;
+    padding: 0.85rem;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    font-weight: bold;
+  }
+
+  .btn:hover:not(:disabled) { background: #d6ff3a; }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Footer */
+  .footer {
+    margin-top: 1.5rem;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="header-tag">// ESP32 &nbsp;·&nbsp; AP MODE</div>
+    <h1>PEN <span>PLOTTER</span></h1>
+    <div class="header-sub">G-CODE UPLOAD INTERFACE &nbsp;·&nbsp; 192.168.4.1</div>
+  </div>
+
+  <div class="card">
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".gcode,.gc,.nc,.txt">
+      <span class="drop-icon">⊕</span>
+      <div class="drop-label">
+        <strong>Tap to select file</strong><br>
+        .gcode &nbsp;/&nbsp; .gc &nbsp;/&nbsp; .nc
+      </div>
+    </div>
+
+    <div class="file-info" id="fileInfo">
+      <div id="fileName"></div>
+      <div class="file-size" id="fileSize"></div>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span>UPLOADING</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <button class="btn" id="uploadBtn" disabled>SEND TO PLOTTER</button>
+
+  </div>
+
+  <div class="footer">ESP-PEN-PLOTTER &nbsp;·&nbsp; LITTLEFS &nbsp;·&nbsp; HTTPD</div>
+
+</div>
+
+<script>
+  const fileInput   = document.getElementById('fileInput');
+  const dropZone    = document.getElementById('dropZone');
+  const fileInfo    = document.getElementById('fileInfo');
+  const fileName    = document.getElementById('fileName');
+  const fileSize    = document.getElementById('fileSize');
+  const progressWrap= document.getElementById('progressWrap');
+  const progressBar = document.getElementById('progressBar');
+  const progressPct = document.getElementById('progressPct');
+  const statusEl    = document.getElementById('status');
+  const uploadBtn   = document.getElementById('uploadBtn');
+
+  let selectedFile = null;
+
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(2) + ' MB';
+  }
+
+  function setStatus(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status visible ' + type;
+  }
+
+  function clearStatus() {
+    statusEl.className = 'status';
+  }
+
+  function onFile(file) {
+    if (!file) return;
+    selectedFile = file;
+    fileName.textContent = '> ' + file.name;
+    fileSize.textContent = '  ' + fmtSize(file.size);
+    fileInfo.classList.add('visible');
+    progressWrap.classList.remove('visible');
+    clearStatus();
+    uploadBtn.disabled = false;
+  }
+
+  fileInput.addEventListener('change', () => onFile(fileInput.files[0]));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    onFile(e.dataTransfer.files[0]);
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    uploadBtn.disabled = true;
+    clearStatus();
+    progressBar.style.width = '0%';
+    progressPct.textContent = '0%';
+    progressWrap.classList.add('visible');
+
+    try {
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload');
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = pct + '%';
+            progressPct.textContent = pct + '%';
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status === 200) resolve(xhr.responseText);
+          else reject(new Error('HTTP ' + xhr.status + ': ' + xhr.responseText));
+        };
+
+        xhr.onerror = () => reject(new Error('Network error — is the ESP still connected?'));
+        xhr.send(selectedFile);
+      });
+
+      progressBar.style.width = '100%';
+      progressPct.textContent = '100%';
+      setStatus('✓  File received. Plotter ready.', 'ok');
+
+    } catch (err) {
+      setStatus('✗  ' + err.message, 'err');
+    } finally {
+      uploadBtn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
