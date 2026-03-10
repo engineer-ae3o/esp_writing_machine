@@ -3,6 +3,7 @@
 
 
 #include <expected>
+#include <optional>
 #include <cstdint>
 
 
@@ -13,13 +14,12 @@ namespace gcode::parser {
         INVALID_COMMAND,
         INVALID_SYNTAX,
         MISSING_PARAMETER,
-        UNKNOWN_ERROR
     };
 
     enum class type_t : int8_t {
         UNKNOWN = -1,
         G0      = 0,
-        G1      = 0,
+        G1      = 1,
         G20     = 20,
         G21     = 21,
         G28     = 28,
@@ -31,8 +31,9 @@ namespace gcode::parser {
     };
 
     struct param_t {
-        float x{}, y{}, f{};
-        bool has_x{}, has_y{}, has_f{};
+        std::optional<float> x{std::nullopt};
+        std::optional<float> y{std::nullopt};
+        std::optional<uint32_t> feed_rate{std::nullopt};
     };
 
     struct line_t {
@@ -50,7 +51,7 @@ namespace gcode::parser {
      *             newline character or null terminator is encountered.
      * 
      * @return `std::expected<line_t, error_t>` The result of parsing
-     *         the line, containing either a line_t struct or an `error_t`
+     *         the line, containing either a parsed line or an error code
      */
     std::expected<line_t, error_t> parse_line(const char* line);
 

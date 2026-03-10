@@ -10,6 +10,8 @@ namespace gcode::parser {
 
         line_t parsed_line{};
         bool is_cmd{};
+
+        std::optional<uint32_t> z = std::nullopt;
         
         while ((*line != '\n') && (*line != '\0')) {
             
@@ -22,7 +24,7 @@ namespace gcode::parser {
                 continue;
             }
 
-            if (!std::isalpha(*line)) {
+            if (!std::isalpha((unsigned char)(*line))) {
                 line++;
                 continue;
             }
@@ -32,13 +34,15 @@ namespace gcode::parser {
             char* end{};
             float val = strtof(line, &end);
             if (line == end) return std::unexpected(error_t::MISSING_PARAMETER);
+            line = end;
 
             if (!is_cmd) {
+                // There can only be one command per valid line of Gcode
                 is_cmd = true;
 
                 switch (letter) {
                     case 'G':
-                        switch (static_cast<int>(val)) {
+                        switch (static_cast<uint32_t>(val)) {
                             case 0: 
                                 parsed_line.type = type_t::G0;
                                 break;
@@ -61,7 +65,7 @@ namespace gcode::parser {
                                 parsed_line.type = type_t::G91;
                                 return parsed_line;
                             default:
-                                return std::unexpected(error_t::INVALID_SYNTAX);
+                                return std::unexpected(error_t::INVALID_COMMAND);
                         }
                         break;
 
@@ -76,38 +80,50 @@ namespace gcode::parser {
                             case 5:
                                 parsed_line.type = type_t::M5;
                                 return parsed_line;
+                            default:
+                                return std::unexpected(error_t::INVALID_COMMAND);
                         }
-
                         return parsed_line;
                 }
+                continue;
             }
             
             switch (letter) {
                 case 'F':
-                    parsed_line.params.has_f = true;
-
+                    parsed_line.params.feed_rate = static_cast<uint32_t>(val);
                     break;
-                
+
                 case 'X':
-                    parsed_line.params.has_x = true;
-
+                    parsed_line.params.x = val;
                     break;
-                
-                case 'Y':
-                    parsed_line.params.has_y = true;
 
+                case 'Y':
+                    parsed_line.params.y = val;
                     break;
 
                 case 'Z':
-
+                    z = static_cast<uint32_t>(val);
                     break;
 
                 default:
-                    line++;
-                    continue;
+                    return std::unexpected(error_t::INVALID_SYNTAX);
             }
-            
-            line++;
+        }
+
+        // Check if there is a Z parameter
+        if (z) {
+            if (z == 0) {
+                // If the Z parameter is 0, that means a pen down motion
+                // which is the same as the `M3`commmand
+                parsed_line.type = type_t::M3;
+            } else if (z == 5) {
+                // If the Z parameter is 5, that means a pen up motion
+                // which is the same as the `M5`commmand
+                parsed_line.type = type_t::M5;
+            } else {
+                // If there is a Z parameter but it's not a 0 or 5, return an error
+                return std::unexpected(error_t::INVALID_SYNTAX);
+            }
         }
         
         return parsed_line;
