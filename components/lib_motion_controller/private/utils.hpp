@@ -5,32 +5,26 @@
 #include "esp_log.h"
 #include "esp_system.h"
 
+#include "config.hpp"
+
 #include <source_location>
 
 
-namespace utils {
+namespace gcode::utils {
 
     constexpr inline bool ASSERTS_ENABLED{true};
+    constexpr inline const char* TAG = "Gcode-Planner";
 
-    enum class log_level_t : uint8_t {
-        NONE = 0,
-        ERROR,
-        WARN,
-        INFO
-    };
-
-    constexpr inline log_level_t LOG_LEVEL = log_level_t::INFO;
-
-    template <log_level_t level, typename... Args>
-    void log(const char* tag, const char* fmt, Args&&... args) {
-        if constexpr (level <= LOG_LEVEL) {
-            // This is a work around. The `ESP_LOGx`
+    template <config::log_level_t level, typename... Args>
+    void log(const char* fmt, Args&&... args) {
+        if constexpr (level <= config::LOG_LEVEL) {
+            // This is a work around. The `ESP_LOGx()`
             // macros expect a string literal
             char msg[128]{};
             snprintf(msg, sizeof(msg), fmt, args...);
-            if constexpr (level == log_level_t::ERROR)     ESP_LOGE(tag, "%s", msg);
-            else if constexpr (level == log_level_t::WARN) ESP_LOGW(tag, "%s", msg);
-            else if constexpr (level == log_level_t::INFO) ESP_LOGI(tag, "%s", msg);
+            if constexpr (level == config::log_level_t::ERROR)     ESP_LOGE(TAG, "%s", msg);
+            else if constexpr (level == config::log_level_t::WARN) ESP_LOGW(TAG, "%s", msg);
+            else if constexpr (level == config::log_level_t::INFO) ESP_LOGI(TAG, "%s", msg);
         }
     }
 
@@ -42,7 +36,7 @@ namespace utils {
     inline void assert_check(bool cond, const char* msg, const std::source_location& loc = std::source_location::current()) {
         if constexpr (ASSERTS_ENABLED) {
             if (!cond) {
-                log<log_level_t::ERROR>("ASSERT", "Assert failed (%s). File: %s. Line: %u. Function: %s",
+                log<config::log_level_t::ERROR>("ASSERT", "Assert failed (%s). File: %s. Line: %u. Function: %s",
                                         msg, loc.file_name(), loc.line(), loc.function_name());
                 panic(msg);
             }
