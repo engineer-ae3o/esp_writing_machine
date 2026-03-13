@@ -24,6 +24,7 @@ namespace gcode {
 
     struct session_t {
         char* file_path{};
+        void (*session_done_cb)(parser::error_t error);
     };
 
     enum class event_t : uint8_t {

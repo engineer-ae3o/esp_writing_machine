@@ -8,6 +8,6 @@ idf_component_register (
                                      "screens/"
                                      "server/"
                                      "utils/"
-                        REQUIRES freertos esp_timer esp_wifi esp_http_server esp_event nvs_flash
-                                 esp_netif drivers lib_graphics lib_motion_controller littlefs
+                        REQUIRES freertos esp_timer esp_wifi esp_http_server esp_event
+                                 nvs_flash esp_netif drivers lib_motion_controller littlefs
 )
