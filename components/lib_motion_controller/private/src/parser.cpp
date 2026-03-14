@@ -90,15 +90,15 @@ namespace gcode::parser {
             
             switch (letter) {
                 case 'F':
-                    parsed_line.params.feed_rate = static_cast<uint32_t>(val);
+                    parsed_line.params->feed_rate = static_cast<uint32_t>(val);
                     break;
 
                 case 'X':
-                    parsed_line.params.x = val;
+                    parsed_line.params->x = val;
                     break;
 
                 case 'Y':
-                    parsed_line.params.y = val;
+                    parsed_line.params->y = val;
                     break;
 
                 case 'Z':

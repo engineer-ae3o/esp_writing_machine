@@ -37,9 +37,9 @@ namespace gcode::parser {
 
     struct line_t {
         // Gcode command
-        type_t type{};
+        std::optional<type_t> type{std::nullopt};
         // These are only valid if the type is either `G0` or `G1`
-        param_t params{};
+        std::optional<param_t> params{std::nullopt};
     };
 
     /**

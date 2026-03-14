@@ -14,9 +14,13 @@ namespace gcode::config {
         INFO
     };
 
-    constexpr inline log_level_t LOG_LEVEL = log_level_t::INFO;
-    constexpr inline bool ASSERTS_ENABLED  = true;
+    constexpr inline log_level_t LOG_LEVEL          = log_level_t::INFO;
+    constexpr inline bool ASSERTS_ENABLED           = true;
 
+    constexpr inline size_t MAX_FILE_NAME_LENGTH   = 64;
+    constexpr inline size_t MAX_GCODE_LINE_LENGTH  = 128;
+
+    constexpr inline size_t MAX_LINE_PARSE_ERROR   = 5;
 }
 
 

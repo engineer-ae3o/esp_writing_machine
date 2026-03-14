@@ -26,12 +26,25 @@ namespace gcode {
         uint16_t task_stack_size{};
     };
 
+    enum class error_t : uint8_t {
+        NONE = 0,
+        UNKNOWN,
+        FILE_NOT_FOUND,
+        FILE_READ_ERROR,
+        OPERATION_STOPPED_BEFORE_COMPLETION,
+        OPERATION_COMPLETED_SUCCESSFULLY,
+        INVALID_COMMAND, 
+        INVALID_SYNTAX,
+        MISSING_PARAMETER
+    };
+
     struct session_t {
         // Path of the file to be opened, parsed and plan the motion
-        char* file_path{};
-        // Is called when a session is completed or hits an error.
+        char file_path[config::MAX_FILE_NAME_LENGTH]{};
+
+        // This is called when a session is completed or hits an error.
         // The error, if any, is passed to the callback
-        void (*session_done_cb)(parser::error_t err);
+        void (*session_done_cb)(error_t err);
     };
 
     enum class event_t : uint8_t {
@@ -86,7 +99,7 @@ namespace gcode {
 
         // Useable functions
         static controller_t& get_instance(const config_t& config);
-        void init();
+        void init(const config_t& config);
         void create_session(const session_t& session);
         void send_event(event_t event);
         void shutdown();
@@ -94,7 +107,9 @@ namespace gcode {
     private:
         controller_t(const config_t&);
         void cleanup();
+        void control_motors(const parser::line_t& line);
         static void planner_task(void* arg);
+        error_t get_error_from_parser_error(parser::error_t error);
     };
 
 } // namespace gcode

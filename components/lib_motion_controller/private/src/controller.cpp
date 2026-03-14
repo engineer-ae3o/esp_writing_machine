@@ -21,18 +21,19 @@ namespace gcode {
         m_session = session;
 
         // Check the args
-        ASSERT(m_session.file_path);
         ASSERT(m_session.session_done_cb);
 
         // Push event and wake the planner task
         event_t event{event_t::SESSION_CREATED};
-        if (m_event_queue) xQueueSend(m_event_queue, &event, portMAX_DELAY);
+        xQueueSend(m_event_queue, &event, portMAX_DELAY);
 
         m_session_active = true;
     }
     
-    void controller_t::init() {
+    void controller_t::init(const config_t& config) {
         if (m_is_initialized) return;
+
+        m_config = config;
 
         ASSERT(m_config.servo_set_angle);
         ASSERT(m_config.send_steps);
@@ -62,8 +63,8 @@ namespace gcode {
     }
 
     // Private functions
-    controller_t::controller_t(const config_t& config) : m_config(config) {
-        init();
+    controller_t::controller_t(const config_t& config) {
+        init(config);
     }
 
     void controller_t::cleanup() {
@@ -71,16 +72,29 @@ namespace gcode {
         m_is_initialized = false;
     }
 
+    void controller_t::control_motors(const parser::line_t& line) {
+        // TODO: Control motors
+    }
+
+    error_t controller_t::get_error_from_parser_error(parser::error_t error) {
+        switch (error) {
+            case parser::error_t::INVALID_COMMAND:   return error_t::INVALID_COMMAND;
+            case parser::error_t::INVALID_SYNTAX:    return error_t::INVALID_SYNTAX;
+            case parser::error_t::MISSING_PARAMETER: return error_t::MISSING_PARAMETER;
+            default:                                 return error_t::UNKNOWN;
+        }
+    }
+
     void controller_t::planner_task(void* arg) {
 
         auto driver{static_cast<controller_t*>(arg)};
 
         event_t event{event_t::NO_EVENT};
-        parser::error_t error{parser::error_t::NONE};
-        parser::line_t line{};
+        error_t error{error_t::NONE};
+        size_t parse_error_count{};
 
         FILE* file_handle{};
-        char gcode_line[128]{};
+        char gcode_line[config::MAX_GCODE_LINE_LENGTH]{};
 
         driver->m_state = {state_t::SLEEPING};
         driver->m_session = {};
@@ -91,34 +105,72 @@ namespace gcode {
                     // Sleep till a session has been created
                     xQueueReceive(driver->m_event_queue, &event, portMAX_DELAY);
                     if (event == event_t::SESSION_CREATED) {
-                        driver->m_state = state_t::PAUSED;
+                        // Open the file and transition to the paused state on success
                         file_handle = fopen(driver->m_session.file_path, "r");
-                        ASSERT(file_handle);
+                        if (!file_handle) {
+                            error = error_t::FILE_NOT_FOUND;
+                            driver->m_state = state_t::STOPPED;
+                        } else {
+                            driver->m_state = state_t::PAUSED;
+                        }
                     }
                     break;
 
                 case state_t::RUNNING:
                     if (xQueueReceive(driver->m_event_queue, &event, 0) == pdTRUE) {
                         if (event == event_t::PAUSE_SESSION) driver->m_state = state_t::PAUSED;
-                        else if (event == event_t::STOP_SESSION) driver->m_state = state_t::STOPPED;
+                        else if (event == event_t::STOP_SESSION) {
+                            error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
+                            driver->m_state = state_t::STOPPED;
+                        };
+                        break;
+                    }
+                    
+                    if (!fgets(gcode_line, sizeof(gcode_line), file_handle)) {
+                        if (feof(file_handle)) {
+                            error = error_t::OPERATION_COMPLETED_SUCCESSFULLY;
+                        } else if (ferror(file_handle)) {
+                            error = error_t::FILE_READ_ERROR;
+                        } else {
+                            error = error_t::UNKNOWN;
+                        }
+                        driver->m_state = state_t::STOPPED;
                         break;
                     }
 
-                    // TODO: Finish implementation
-                    auto ret = fgets(gcode_line, 0, file_handle);
+                    auto ret = parser::parse_line(gcode_line);
+                    if (!ret) {
+                        parse_error_count++;
+                        if (parse_error_count >= config::MAX_LINE_PARSE_ERROR) {
+                            parse_error_count = 0;
+                            error = driver->get_error_from_parser_error(ret.error());
+                            driver->m_state = state_t::STOPPED;
+                        }
+                        break;
+                    }
 
+                    // If we get here, that means the line has
+                    // been read and parsed without any errors. 
+                    driver->control_motors(ret.value());
                     break;
 
                 case state_t::PAUSED:
                     xQueueReceive(driver->m_event_queue, &event, portMAX_DELAY);
                     if ((event == event_t::START_SESSION) || (event == event_t::RESUME_SESSION)) driver->m_state = state_t::RUNNING;
-                    else if (event == event_t::STOP_SESSION) driver->m_state = state_t::STOPPED;
+                    else if (event == event_t::STOP_SESSION) {
+                        error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
+                        driver->m_state = state_t::STOPPED;
+                    }
                     break;
 
                 case state_t::STOPPED:
                     driver->m_session.session_done_cb(error);
                     driver->m_session = {};
                     driver->m_session_active = false;
+
+                    error = error_t::NONE;
+                    file_handle = {};
+
                     driver->m_state = state_t::SLEEPING;
                     break;
 
@@ -127,6 +179,8 @@ namespace gcode {
                     break;
             }
         }
+
+        driver->m_is_initialized = false;
 
         vQueueDelete(driver->m_event_queue);
         vTaskDelete(nullptr);
