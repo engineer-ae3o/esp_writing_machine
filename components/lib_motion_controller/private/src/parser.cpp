@@ -36,6 +36,7 @@ namespace gcode::parser {
             char* end{};
             float val = strtof(line, &end);
             if (line == end) return std::unexpected(error_t::MISSING_PARAMETER);
+            // Advance pointer to next character after the last digit of the extracted float
             line = end;
 
             if (!is_cmd) {

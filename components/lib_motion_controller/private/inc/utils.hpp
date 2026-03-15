@@ -12,18 +12,17 @@
 
 namespace gcode::utils {
 
-    constexpr inline const char* TAG = "Gcode-Planner";
-
     template <config::log_level_t level, typename... Args>
     void log(const char* fmt, Args&&... args) {
-        if constexpr (level <= config::LOG_LEVEL) {
+        if constexpr (static_cast<uint8_t>(level) <= static_cast<uint8_t>(config::LOG_LEVEL)) {
             // This is a work around. The `ESP_LOGx()`
             // macros expect a string literal
             char msg[128]{};
-            snprintf(msg, sizeof(msg), fmt, args...);
-            if constexpr (level == config::log_level_t::ERROR)     ESP_LOGE(TAG, "%s", msg);
-            else if constexpr (level == config::log_level_t::WARN) ESP_LOGW(TAG, "%s", msg);
-            else if constexpr (level == config::log_level_t::INFO) ESP_LOGI(TAG, "%s", msg);
+            snprintf(msg, sizeof(msg), fmt, std::forward(args)...);
+            
+            if constexpr (level == config::log_level_t::ERROR)     ESP_LOGE(config::TAG, "%s", msg);
+            else if constexpr (level == config::log_level_t::WARN) ESP_LOGW(config::TAG, "%s", msg);
+            else if constexpr (level == config::log_level_t::INFO) ESP_LOGI(config::TAG, "%s", msg);
         }
     }
 

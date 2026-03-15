@@ -64,6 +64,11 @@ namespace gcode {
         xQueueSend(m_event_queue, &event, portMAX_DELAY);
     }
 
+    controller_t::state_t controller_t::get_state() {
+        ASSERT(m_is_initialized);
+        return m_state;
+    }
+
     // Private functions
     controller_t::controller_t(const config_t& config) {
         init(config);
@@ -99,7 +104,7 @@ namespace gcode {
         size_t line_count{};
 
         FILE* file_handle{};
-        char gcode_line[config::MAX_GCODE_LINE_LENGTH]{};
+        std::array<char, config::MAX_GCODE_LINE_LENGTH> gcode_line{};
 
         driver->m_state = {state_t::SLEEPING};
         driver->m_session = {};
@@ -143,7 +148,7 @@ namespace gcode {
                     }
                     
                     // Read file and check for errors
-                    if (!fgets(gcode_line, sizeof(gcode_line), file_handle)) {
+                    if (!fgets(gcode_line.data(), gcode_line.size(), file_handle)) {
                         // End of file: this session is complete
                         if (feof(file_handle)) {
                             session_done.error = error_t::NONE;
@@ -167,7 +172,7 @@ namespace gcode {
                     // Increment count on every successful line read
                     line_count++;
 
-                    auto ret = parser::parse_line(gcode_line);
+                    auto ret = parser::parse_line(gcode_line.data());
                     if (!ret) {
                         parse_error_count++;
 
@@ -179,7 +184,7 @@ namespace gcode {
                             // Set error values
                             session_done.error = driver->get_error_from_parser_error(ret.error());
                             session_done.error_line.emplace();
-                            strlcpy(session_done.error_line->data(), gcode_line, session_done.error_line->size());
+                            strlcpy(session_done.error_line->data(), gcode_line.data(), session_done.error_line->size());
                             session_done.line_num = line_count;
 
                             driver->m_state = state_t::STOPPED;
@@ -220,11 +225,11 @@ namespace gcode {
                     parse_error_count = 0;
                     line_count = 0;
                     session_done = {};
-                    memset(gcode_line, 0, sizeof(gcode_line));
+                    gcode_line.fill((char)0);
                     fclose(file_handle);
                     file_handle = {};
 
-                    utils::log<config::log_level_t::INFO>("Session (if any) stopped");
+                    utils::log<config::log_level_t::INFO>("Session (if any) stopped. Going to sleep");
 
                     driver->m_state = state_t::SLEEPING;
                     break;

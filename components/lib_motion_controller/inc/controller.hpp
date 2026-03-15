@@ -6,7 +6,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#include "parser.hpp"
+#include "../private/inc/parser.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -17,10 +17,10 @@ namespace gcode {
     
     struct config_t {
         // Set the servo motor's angle for up and down motion of the pen
-        void(*servo_set_angle)(uint32_t angle);
+        void(*servo_set_angle)(uint32_t angle){};
 
         // Send steps. Straightforward. `true` represents the forward direction
-        void(*send_steps)(uint32_t steps, bool dir, uint32_t speed, uint32_t accel);
+        void(*send_steps)(uint32_t steps, bool dir, uint32_t speed, uint32_t accel){};
 
         uint8_t queue_size{};
         uint8_t task_priority{};
@@ -110,6 +110,7 @@ namespace gcode {
         void init(const config_t& config);
         void create_session(const session_t& session);
         void send_event(event_t event);
+        state_t get_state();
         void shutdown();
 
     private:
