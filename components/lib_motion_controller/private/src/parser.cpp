@@ -46,11 +46,15 @@ namespace gcode::parser {
                 switch (letter) {
                     case 'G':
                         switch (static_cast<uint32_t>(val)) {
-                            case 0: 
+                            case 0:
                                 parsed_line.type = type_t::G0;
+                                // Create the params object
+                                parsed_line.params.emplace();
                                 break;
-                            case 1: 
+                            case 1:
                                 parsed_line.type = type_t::G1;
+                                // Create the params object
+                                parsed_line.params.emplace();
                                 break;
                             case 20:
                                 parsed_line.type = type_t::G20;
@@ -86,7 +90,9 @@ namespace gcode::parser {
                             default:
                                 return std::unexpected(error_t::INVALID_COMMAND);
                         }
-                        return parsed_line;
+                        
+                    default:
+                        return std::unexpected(error_t::INVALID_COMMAND);
                 }
                 continue;
             }
@@ -128,6 +134,11 @@ namespace gcode::parser {
                 return std::unexpected(error_t::INVALID_SYNTAX);
             }
         }
+
+        // Make sure that `G0` and `G1` both have valid parameters after them
+        // The feedrate is optional (lol), but x and y are not. A valid gcode
+        // line with `G0` and `G1` has x and y, not only one
+        if (!parsed_line.params->x || !parsed_line.params->y) return std::unexpected(error_t::MISSING_PARAMETER);
         
         return parsed_line;
     }

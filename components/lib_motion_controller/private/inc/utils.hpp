@@ -18,7 +18,7 @@ namespace gcode::utils {
             // This is a work around. The `ESP_LOGx()`
             // macros expect a string literal
             char msg[128]{};
-            snprintf(msg, sizeof(msg), fmt, std::forward(args)...);
+            snprintf(msg, sizeof(msg), fmt, std::forward<Args>(args)...);
             
             if constexpr (level == config::log_level_t::ERROR)     ESP_LOGE(config::TAG, "%s", msg);
             else if constexpr (level == config::log_level_t::WARN) ESP_LOGW(config::TAG, "%s", msg);

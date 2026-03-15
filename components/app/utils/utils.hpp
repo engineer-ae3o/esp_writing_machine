@@ -27,7 +27,7 @@ namespace utils {
             // This is a work around. The `ESP_LOGx`
             // macros expect a string literal
             char msg[128]{};
-            snprintf(msg, sizeof(msg), fmt, args...);
+            snprintf(msg, sizeof(msg), fmt, std::forward<Args>(args)...);
             if constexpr (level == log_level_t::ERROR)     ESP_LOGE(tag, "%s", msg);
             else if constexpr (level == log_level_t::WARN) ESP_LOGW(tag, "%s", msg);
             else if constexpr (level == log_level_t::INFO) ESP_LOGI(tag, "%s", msg);

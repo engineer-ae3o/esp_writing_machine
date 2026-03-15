@@ -1,54 +1,46 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 
 #include "stepper.hpp"
-#include "st7920.hpp"
 #include "config.hpp"
 #include "utils.hpp"
-
-#include "esp_heap_caps.h"
-#include "esp_littlefs.h"
-#include "esp_log.h"
 
 #include <cstdio>
 
 
 extern "C" {
+
     void app_main() {
 
         constexpr const char TAG[] = "MAIN";
 
-        constexpr st7920::config_t config = {
-
-            .spi_host = SPI2_HOST,
-            .spi_clock_speed_hz = 500'000,
+        constexpr a4988::config_t config = {
             
-            .pin_mosi = config::MOSI_PIN,
-            .pin_sclk = config::SCLK_PIN,
-            .pin_cs = config::CS_PIN,
-            
-            .width = 128,
-            .height = 64,
-            
-            .max_retries = 4,
-            
-            .queue_size = 10,
-            .task_priority = 7,
-            .task_core = 1,
-            .task_stack_size = 3072
         };
 
-        auto [display, ret] = st7920::st7920_t::create(config);
-        if (!display) {
-            utils::log<utils::log_level_t::ERROR>(TAG, "Failed to initialize the ST7920: %s", esp_err_to_name(ret));
+        auto stepper = a4988::driver_t<a4988::microstep_t::ONE_SIXTEENTH>::create(config);
+        if (!stepper) {
+            utils::log<utils::log_level_t::ERROR>(TAG, "Failed to initialize the stepper motor driver: %s", esp_err_to_name(stepper.error()));
             return;
         }
+        
+        ESP_ERROR_CHECK(stepper.value()->enable());
 
-        ESP_ERROR_CHECK(display->set_screen(true, nullptr, nullptr));
+        constexpr uint32_t SLOW_SPEED   = 1'000;
+        constexpr uint32_t MID_SPEED    = 5'000;
+        constexpr uint32_t FAST_SPEED   = 10'000;
+
+        constexpr uint32_t ACCELERATION = 100;
 
         while (1) {
-            vTaskDelay(10000);
+            ESP_ERROR_CHECK(stepper.value()->send_steps(1000, a4988::dir_t::CLOCKWISE, SLOW_SPEED));
+            vTaskDelay(pdMS_TO_TICKS(5000));
+
+            ESP_ERROR_CHECK(stepper.value()->send_steps_async(1000, a4988::dir_t::CLOCKWISE, MID_SPEED));
+            vTaskDelay(pdMS_TO_TICKS(5000));
+
+            ESP_ERROR_CHECK(stepper.value()->send_steps_async_with_accel(2000, a4988::dir_t::ANTICLOCKWISE, FAST_SPEED, ACCELERATION));
+            vTaskDelay(pdMS_TO_TICKS(5000));
         }
     }
 

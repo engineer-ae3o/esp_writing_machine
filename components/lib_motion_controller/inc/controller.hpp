@@ -6,7 +6,8 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#include "../private/inc/parser.hpp"
+#include "parser.hpp"
+#include "config.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -70,6 +71,13 @@ namespace gcode {
                                             device in the `STOPPED` state, then the`SLEEPING` state */
     };
 
+    enum class state_t : uint8_t {
+        SLEEPING = 0,
+        RUNNING,
+        PAUSED,
+        STOPPED
+    };
+
     class controller_t {
     private:
         config_t m_config{};
@@ -80,13 +88,6 @@ namespace gcode {
         bool m_shutdown_requested{};
 
         QueueHandle_t m_event_queue{};
-
-        enum class state_t : uint8_t {
-            SLEEPING = 0,
-            RUNNING,
-            PAUSED,
-            STOPPED
-        };
 
         state_t m_state{state_t::SLEEPING};
         
@@ -112,6 +113,8 @@ namespace gcode {
         void send_event(event_t event);
         state_t get_state();
         void shutdown();
+        constexpr const char* event_to_string(event_t event);
+        constexpr const char* controller_state_to_string(state_t state);
 
     private:
         controller_t(const config_t&);

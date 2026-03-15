@@ -34,7 +34,7 @@ namespace a4988 {
         if constexpr (level <= LOG_LEVEL) {
             // This is a work around. The ESP_LOGx macros
             // expect a string literal
-            char msg[256]{};
+            char msg[128]{};
             snprintf(msg, sizeof(msg), fmt, args...);
             if constexpr (level == log_level_t::ERROR)     ESP_LOGE(TAG, "%s", msg);
             else if constexpr (level == log_level_t::WARN) ESP_LOGW(TAG, "%s", msg);
@@ -136,11 +136,11 @@ namespace a4988 {
                 gpio_reset_pin(m_config.microstep_2);
                 gpio_reset_pin(m_config.microstep_3);
             }
-        
+            
             if (m_copy_enc_handle) {
                 ret = rmt_del_encoder(m_copy_enc_handle);
                 if (ret != ESP_OK) {
-                    log<log_level_t::ERROR>("Failed to delete rmt constant speed encoder: %s", esp_err_to_name(ret));
+                    log<log_level_t::ERROR>("Failed to delete rmt encoder: %s", esp_err_to_name(ret));
                     return ret;
                 }
                 m_copy_enc_handle = nullptr;
@@ -182,8 +182,8 @@ namespace a4988 {
 
             for (uint32_t i = 0; i < ACCEL_LEVELS; i++) {
                 // Using `(vf ^ 2) = (vi ^ 2) + (2 * a * s)`
-                const float v_final = sqrtf((v_start * v_start) + (2.0f * accel * (i * steps_per_accel_level)));
-                const uint32_t half_period = m_config.rmt_frequency / (2 * static_cast<uint32_t>(v_final));
+                const float v_next = sqrtf((v_start * v_start) + (2.0f * accel * (i * steps_per_accel_level)));
+                const uint32_t half_period = static_cast<uint32_t>(m_config.rmt_frequency / (2.0f * v_next));
 
                 accel_steps_words[i].duration0 = half_period;
                 accel_steps_words[i].level0 = 1;
@@ -264,14 +264,13 @@ namespace a4988 {
 
         // Only moveable
         driver_t(driver_t&& other) {
-            // Get all of the other class' resources
+            
             m_is_initialized = other.m_is_initialized;
             m_chan_handle = other.m_chan_handle;
             m_copy_enc_handle = other.m_copy_enc_handle;
             m_config = other.m_config;
             m_calling_task_handle = other.m_calling_task_handle;
-
-            // Invalidate the other class
+            
             other.m_is_initialized = false;
             other.m_chan_handle = nullptr;
             other.m_copy_enc_handle = nullptr;
@@ -281,17 +280,15 @@ namespace a4988 {
 
         driver_t& operator=(driver_t&& other) {
             if (this != &other) {
-                // Destroy the current class' instance
-                cleanup();
 
-                // Get all of the other class' resources
+                cleanup();
+                
                 m_chan_handle = other.m_chan_handle;
                 m_copy_enc_handle = other.m_copy_enc_handle;
                 m_is_initialized = other.m_is_initialized;
                 m_config = other.m_config;
                 m_calling_task_handle = other.m_calling_task_handle;
-
-                // Invalidate the other class
+                
                 other.m_is_initialized = false;
                 other.m_chan_handle = nullptr;
                 other.m_copy_enc_handle = nullptr;
@@ -303,7 +300,7 @@ namespace a4988 {
         }
 
         /**
-         * @brief Constructs a `driver_t` object oj the heap and moves
+         * @brief Constructs a `driver_t` object on the heap and moves
          *        it into the calling function. This is done to
          *        ensure that creation of an `driver_t` object
          *        and initialization occurs with a single function
@@ -509,6 +506,8 @@ namespace a4988 {
         [[nodiscard]] esp_err_t send_steps(uint32_t steps, dir_t dir, uint32_t speed) {
 
             if (!m_is_initialized) return ESP_ERR_INVALID_STATE;
+
+            if ((steps == 0) || (speed == 0)) return ESP_ERR_INVALID_ARG;
             
             // Set direction
             gpio_set_level(m_config.dir_pin, static_cast<uint8_t>(dir));
@@ -572,6 +571,8 @@ namespace a4988 {
         [[nodiscard]] esp_err_t send_steps_async(uint32_t steps, dir_t dir, uint32_t speed) {
 
             if (!m_is_initialized) return ESP_ERR_INVALID_STATE;
+
+            if ((steps == 0) || (speed == 0)) return ESP_ERR_INVALID_ARG;
             
             // Set direction
             gpio_set_level(m_config.dir_pin, static_cast<uint8_t>(dir));

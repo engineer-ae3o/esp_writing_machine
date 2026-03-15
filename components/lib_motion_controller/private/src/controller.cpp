@@ -16,22 +16,6 @@ namespace gcode {
         return instance;
     }
 
-    void controller_t::create_session(const session_t& session) {
-        // Check to see if we are not initialized or there is a currently active session
-        ASSERT(m_is_initialized && !m_session_active);
-
-        m_session = session;
-
-        // Check the args
-        ASSERT(m_session.session_done_cb);
-
-        // Push event and wake the planner task
-        event_t event{event_t::SESSION_CREATED};
-        xQueueSend(m_event_queue, &event, portMAX_DELAY);
-
-        m_session_active = true;
-    }
-    
     void controller_t::init(const config_t& config) {
         if (m_is_initialized) return;
 
@@ -53,6 +37,22 @@ namespace gcode {
         m_is_initialized = true;
     }
     
+    void controller_t::create_session(const session_t& session) {
+        // Check to see if we are not initialized or there is a currently active session
+        ASSERT(m_is_initialized && !m_session_active);
+
+        m_session = session;
+
+        // Check the args
+        ASSERT(m_session.session_done_cb);
+
+        // Push event and wake the planner task
+        event_t event{event_t::SESSION_CREATED};
+        xQueueSend(m_event_queue, &event, portMAX_DELAY);
+
+        m_session_active = true;
+    }
+    
     void controller_t::shutdown() {
         if (m_is_initialized) cleanup();
     }
@@ -64,9 +64,30 @@ namespace gcode {
         xQueueSend(m_event_queue, &event, portMAX_DELAY);
     }
 
-    controller_t::state_t controller_t::get_state() {
+    state_t controller_t::get_state() {
         ASSERT(m_is_initialized);
         return m_state;
+    }
+
+    constexpr const char* controller_t::event_to_string(event_t event) {
+        switch (event) {
+            case event_t::NO_EVENT:        return "NO_EVENT";
+            case event_t::SESSION_CREATED: return "SESSION_CREATED";
+            case event_t::PAUSE_SESSION:   return "PAUSE_SESSION";
+            case event_t::START_SESSION:   return "START_SESSION";
+            case event_t::STOP_SESSION:    return "STOP_SESSION";
+            default:                       return "UNKNOWN";
+        }
+    }
+    
+    constexpr const char* controller_t::controller_state_to_string(state_t state) {
+        switch (state) {
+            case state_t::SLEEPING: return "SLEEPING";
+            case state_t::RUNNING:  return "RUNNING";
+            case state_t::PAUSED:   return "PAUSED";
+            case state_t::STOPPED:  return "STOPPED";
+            default:                return "UNKNOWN";
+        }
     }
 
     // Private functions
@@ -76,6 +97,9 @@ namespace gcode {
 
     void controller_t::cleanup() {
         m_shutdown_requested = true;
+        // Unblock the task if it was blocked previously
+        event_t event = event_t::STOP_SESSION;
+        xQueueSend(m_event_queue, &event, portMAX_DELAY);
         m_is_initialized = false;
     }
 
@@ -94,7 +118,7 @@ namespace gcode {
 
     void controller_t::planner_task(void* arg) {
 
-        utils::log<config::log_level_t::INFO>("Started planner task");
+        utils::log<config::log_level_t::INFO>("Starting the planner task");
 
         auto driver{static_cast<controller_t*>(arg)};
 
@@ -116,7 +140,8 @@ namespace gcode {
                     // received in this state are ignored and have no effect
                     xQueueReceive(driver->m_event_queue, &event, portMAX_DELAY);
                     if (event != event_t::SESSION_CREATED) {
-                        utils::log<config::log_level_t::WARN>("Invalid event for the current state (SLEEPING)");
+                        utils::log<config::log_level_t::WARN>("Invalid event for the current state (SLEEPING): %s",
+                                                              driver->event_to_string(event));
                         break;
                     }
 
@@ -124,11 +149,14 @@ namespace gcode {
                     file_handle = fopen(driver->m_session.file_path, "r");
                     if (!file_handle) {
                         session_done.error = error_t::FILE_NOT_FOUND;
-                        utils::log<config::log_level_t::ERROR>("Failed to open file. Failed to start session");
+                        utils::log<config::log_level_t::ERROR>("Failed to open file. Session unable to start");
                         driver->m_state = state_t::STOPPED;
+                        utils::log<config::log_level_t::INFO>("State changed to STOPPED from SLEEPING");
+
                     } else {
                         utils::log<config::log_level_t::INFO>("Session created. Waiting for the START_SESSION event");
                         driver->m_state = state_t::PAUSED;
+                        utils::log<config::log_level_t::INFO>("State changed to PAUSED from SLEEPING");
                     }
                     
                     break;
@@ -137,12 +165,18 @@ namespace gcode {
                     // Check for events periodically. The only events that change the
                     // state are the PAUSE_SESSION and STOP_SESSION events
                     if (xQueueReceive(driver->m_event_queue, &event, 0) == pdTRUE) {
-                        if (event == event_t::PAUSE_SESSION) driver->m_state = state_t::PAUSED;
-                        else if (event == event_t::STOP_SESSION) {
+                        if (event == event_t::PAUSE_SESSION) {
+                            driver->m_state = state_t::PAUSED;
+                            utils::log<config::log_level_t::INFO>("State changed to PAUSED from RUNNING");
+
+                        } else if (event == event_t::STOP_SESSION) {
                             session_done.error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
                             driver->m_state = state_t::STOPPED;
+                            utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
+
                         } else {
-                            utils::log<config::log_level_t::WARN>("Invalid event for the current state (RUNNING)");
+                            utils::log<config::log_level_t::WARN>("Invalid event for the current state (RUNNING): %s. Resuming operation",
+                                                                  driver->event_to_string(event));
                         }
                         break;
                     }
@@ -166,6 +200,7 @@ namespace gcode {
                         }
 
                         driver->m_state = state_t::STOPPED;
+                        utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
                         break;
                     }
 
@@ -188,10 +223,11 @@ namespace gcode {
                             session_done.line_num = line_count;
 
                             driver->m_state = state_t::STOPPED;
+                            utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
                         }
                         // Just log the parse error and move on
                         else {
-                            utils::log<config::log_level_t::ERROR>("Failed to parse line %u: (%s)", line_count, gcode_line);
+                            utils::log<config::log_level_t::ERROR>("Failed to parse line %u: (%s)", line_count, gcode_line.data());
                         }
                         break;
                     }
@@ -205,12 +241,18 @@ namespace gcode {
                     // Sleep till we get a START_SESSION or RESUME_SESSION event.
                     // All other events are ignored
                     xQueueReceive(driver->m_event_queue, &event, portMAX_DELAY);
-                    if ((event == event_t::START_SESSION) || (event == event_t::RESUME_SESSION)) driver->m_state = state_t::RUNNING;
-                    else if (event == event_t::STOP_SESSION) {
+                    if ((event == event_t::START_SESSION) || (event == event_t::RESUME_SESSION)) {
+                        driver->m_state = state_t::RUNNING;
+                        utils::log<config::log_level_t::INFO>("State changed to RUNNING from PAUSED");
+
+                    } else if (event == event_t::STOP_SESSION) {
                         session_done.error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
                         driver->m_state = state_t::STOPPED;
+                        utils::log<config::log_level_t::INFO>("State changed to STOPPED from PAUSED");
+
                     } else {
-                        utils::log<config::log_level_t::WARN>("Invalid event for the current state (PAUSED)");
+                        utils::log<config::log_level_t::WARN>("Invalid event for the current state (PAUSED): %s",
+                                                              driver->event_to_string(event));
                     }
                     break;
 
@@ -221,20 +263,26 @@ namespace gcode {
                     // Zero out variables in preparation for the next session (if any)
                     driver->m_session = {};
                     driver->m_session_active = false;
+                    gcode_line.fill((char)0);
+
                     event = event_t::NO_EVENT;
                     parse_error_count = 0;
                     line_count = 0;
                     session_done = {};
-                    gcode_line.fill((char)0);
-                    fclose(file_handle);
-                    file_handle = {};
+
+                    if (file_handle) {
+                        fclose(file_handle);
+                        file_handle = nullptr;
+                    }
 
                     utils::log<config::log_level_t::INFO>("Session (if any) stopped. Going to sleep");
 
                     driver->m_state = state_t::SLEEPING;
+                    utils::log<config::log_level_t::INFO>("State changed to SLEEPING from STOPPED");
                     break;
 
                 default:
+                    utils::log<config::log_level_t::WARN>("Invalid state. Going to sleep");
                     driver->m_state = state_t::SLEEPING;
                     break;
             }
