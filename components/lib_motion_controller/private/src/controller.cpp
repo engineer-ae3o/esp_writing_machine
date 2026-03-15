@@ -2,6 +2,8 @@
 #include "config.hpp"
 #include "utils.hpp"
 
+#include <cstring>
+
 
 namespace gcode {
 
@@ -15,7 +17,7 @@ namespace gcode {
     }
 
     void controller_t::create_session(const session_t& session) {
-        // Return if we are not initialized or there is a currently active session
+        // Check to see if we are not initialized or there is a currently active session
         ASSERT(m_is_initialized && !m_session_active);
 
         m_session = session;
@@ -87,11 +89,14 @@ namespace gcode {
 
     void controller_t::planner_task(void* arg) {
 
+        utils::log<config::log_level_t::INFO>("Started planner task");
+
         auto driver{static_cast<controller_t*>(arg)};
 
         event_t event{event_t::NO_EVENT};
-        error_t error{error_t::NONE};
+        session_done_t session_done{};
         size_t parse_error_count{};
+        size_t line_count{};
 
         FILE* file_handle{};
         char gcode_line[config::MAX_GCODE_LINE_LENGTH]{};
@@ -102,49 +107,86 @@ namespace gcode {
         while (!driver->m_shutdown_requested) {
             switch (driver->m_state) {
                 case state_t::SLEEPING:
-                    // Sleep till a session has been created
+                    // Sleep till a session has been created. All other events
+                    // received in this state are ignored and have no effect
                     xQueueReceive(driver->m_event_queue, &event, portMAX_DELAY);
-                    if (event == event_t::SESSION_CREATED) {
-                        // Open the file and transition to the paused state on success
-                        file_handle = fopen(driver->m_session.file_path, "r");
-                        if (!file_handle) {
-                            error = error_t::FILE_NOT_FOUND;
-                            driver->m_state = state_t::STOPPED;
-                        } else {
-                            driver->m_state = state_t::PAUSED;
-                        }
+                    if (event != event_t::SESSION_CREATED) {
+                        utils::log<config::log_level_t::WARN>("Invalid event for the current state (SLEEPING)");
+                        break;
                     }
+
+                    // Open the file and transition to the paused state on success
+                    file_handle = fopen(driver->m_session.file_path, "r");
+                    if (!file_handle) {
+                        session_done.error = error_t::FILE_NOT_FOUND;
+                        utils::log<config::log_level_t::ERROR>("Failed to open file. Failed to start session");
+                        driver->m_state = state_t::STOPPED;
+                    } else {
+                        utils::log<config::log_level_t::INFO>("Session created. Waiting for the START_SESSION event");
+                        driver->m_state = state_t::PAUSED;
+                    }
+                    
                     break;
 
                 case state_t::RUNNING:
+                    // Check for events periodically. The only events that change the
+                    // state are the PAUSE_SESSION and STOP_SESSION events
                     if (xQueueReceive(driver->m_event_queue, &event, 0) == pdTRUE) {
                         if (event == event_t::PAUSE_SESSION) driver->m_state = state_t::PAUSED;
                         else if (event == event_t::STOP_SESSION) {
-                            error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
+                            session_done.error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
                             driver->m_state = state_t::STOPPED;
-                        };
+                        } else {
+                            utils::log<config::log_level_t::WARN>("Invalid event for the current state (RUNNING)");
+                        }
                         break;
                     }
                     
+                    // Read file and check for errors
                     if (!fgets(gcode_line, sizeof(gcode_line), file_handle)) {
+                        // End of file: this session is complete
                         if (feof(file_handle)) {
-                            error = error_t::OPERATION_COMPLETED_SUCCESSFULLY;
-                        } else if (ferror(file_handle)) {
-                            error = error_t::FILE_READ_ERROR;
-                        } else {
-                            error = error_t::UNKNOWN;
+                            session_done.error = error_t::NONE;
+                            utils::log<config::log_level_t::INFO>("Session complete");
                         }
+                        // A file IO error occurred
+                        else if (ferror(file_handle)) {
+                            session_done.error = error_t::FILE_READ_ERROR;
+                            utils::log<config::log_level_t::ERROR>("File IO error");
+                        }
+                        // Most likely won't get here, but incase
+                        else {
+                            session_done.error = error_t::UNKNOWN;
+                            utils::log<config::log_level_t::ERROR>("Unknown error while reading file");
+                        }
+
                         driver->m_state = state_t::STOPPED;
                         break;
                     }
 
+                    // Increment count on every successful line read
+                    line_count++;
+
                     auto ret = parser::parse_line(gcode_line);
                     if (!ret) {
                         parse_error_count++;
+
+                        // Only end the session when we get past MAX_LINE_PARSE_ERROR errors
                         if (parse_error_count >= config::MAX_LINE_PARSE_ERROR) {
                             parse_error_count = 0;
-                            error = driver->get_error_from_parser_error(ret.error());
+                            utils::log<config::log_level_t::ERROR>("Too many parsing errors. Exiting session");
+
+                            // Set error values
+                            session_done.error = driver->get_error_from_parser_error(ret.error());
+                            session_done.error_line.emplace();
+                            strlcpy(session_done.error_line->data(), gcode_line, session_done.error_line->size());
+                            session_done.line_num = line_count;
+
                             driver->m_state = state_t::STOPPED;
+                        }
+                        // Just log the parse error and move on
+                        else {
+                            utils::log<config::log_level_t::ERROR>("Failed to parse line %u: (%s)", line_count, gcode_line);
                         }
                         break;
                     }
@@ -155,21 +197,34 @@ namespace gcode {
                     break;
 
                 case state_t::PAUSED:
+                    // Sleep till we get a START_SESSION or RESUME_SESSION event.
+                    // All other events are ignored
                     xQueueReceive(driver->m_event_queue, &event, portMAX_DELAY);
                     if ((event == event_t::START_SESSION) || (event == event_t::RESUME_SESSION)) driver->m_state = state_t::RUNNING;
                     else if (event == event_t::STOP_SESSION) {
-                        error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
+                        session_done.error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
                         driver->m_state = state_t::STOPPED;
+                    } else {
+                        utils::log<config::log_level_t::WARN>("Invalid event for the current state (PAUSED)");
                     }
                     break;
 
                 case state_t::STOPPED:
-                    driver->m_session.session_done_cb(error);
+                    // Call the user session done callback
+                    driver->m_session.session_done_cb(session_done);
+
+                    // Zero out variables in preparation for the next session (if any)
                     driver->m_session = {};
                     driver->m_session_active = false;
-
-                    error = error_t::NONE;
+                    event = event_t::NO_EVENT;
+                    parse_error_count = 0;
+                    line_count = 0;
+                    session_done = {};
+                    memset(gcode_line, 0, sizeof(gcode_line));
+                    fclose(file_handle);
                     file_handle = {};
+
+                    utils::log<config::log_level_t::INFO>("Session (if any) stopped");
 
                     driver->m_state = state_t::SLEEPING;
                     break;

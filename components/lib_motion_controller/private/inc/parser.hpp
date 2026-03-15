@@ -17,16 +17,16 @@ namespace gcode::parser {
     };
 
     enum class type_t : uint8_t {
-        G0  = 0,
-        G1  = 1,
-        G20 = 20,
-        G21 = 21,
-        G28 = 28,
-        G90 = 90,
-        G91 = 91,
-        M2  = 2,
-        M3  = 3,
-        M5  = 5
+        G0  = 0,   // Rapid move
+        G1  = 1,   // Linear move (takes `feed_rate` parameter)
+        G20 = 20,  // Set units to inches
+        G21 = 21,  // Set units to milimetres
+        G28 = 28,  // Home all axes
+        G90 = 90,  // Absolute coordinates
+        G91 = 91,  // Relative coordinates
+        M2  = 2,   // Program end
+        M3  = 3,   // Pen down
+        M5  = 5    // Pen up
     };
 
     struct param_t {
@@ -36,7 +36,8 @@ namespace gcode::parser {
     };
 
     struct line_t {
-        // Gcode command
+        // Gcode command. It is a `std::optional`
+        // to account for pure comment lines
         std::optional<type_t> type{std::nullopt};
         // These are only valid if the type is either `G0` or `G1`
         std::optional<param_t> params{std::nullopt};

@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <array>
 
 
 namespace gcode {
@@ -32,10 +33,17 @@ namespace gcode {
         FILE_NOT_FOUND,
         FILE_READ_ERROR,
         OPERATION_STOPPED_BEFORE_COMPLETION,
-        OPERATION_COMPLETED_SUCCESSFULLY,
+        // Parser errors
         INVALID_COMMAND, 
         INVALID_SYNTAX,
         MISSING_PARAMETER
+    };
+
+    struct session_done_t {
+        error_t error{error_t::NONE};
+        // These are only valid in the case of a line parsing error
+        std::optional<std::array<char, config::MAX_GCODE_LINE_LENGTH>> error_line{std::nullopt};
+        std::optional<size_t> line_num{std::nullopt};
     };
 
     struct session_t {
@@ -44,7 +52,7 @@ namespace gcode {
 
         // This is called when a session is completed or hits an error.
         // The error, if any, is passed to the callback
-        void (*session_done_cb)(error_t err);
+        void (*session_done_cb)(const session_done_t&);
     };
 
     enum class event_t : uint8_t {

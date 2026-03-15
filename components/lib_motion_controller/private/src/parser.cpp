@@ -11,6 +11,8 @@ namespace gcode::parser {
         line_t parsed_line{};
         bool is_cmd{};
 
+        // Needed to check for `Z0` and `Z5` parameters since they
+        // have the same meanings as the `M3` and `M5` commands
         std::optional<uint32_t> z{std::nullopt};
         
         while ((*line != '\n') && (*line != '\0')) {
@@ -112,12 +114,12 @@ namespace gcode::parser {
 
         // Check if there is a Z parameter
         if (z) {
-            if (z == 0) {
-                // If the Z parameter is 0, that means a pen down motion
+            if (z == 0UL) {
+                // If the Z parameter is 0, that means a pen down motion,
                 // which is the same as the `M3`commmand
                 parsed_line.type = type_t::M3;
-            } else if (z == 5) {
-                // If the Z parameter is 5, that means a pen up motion
+            } else if (z == 5UL) {
+                // If the Z parameter is 5, that means a pen up motion,
                 // which is the same as the `M5`commmand
                 parsed_line.type = type_t::M5;
             } else {
