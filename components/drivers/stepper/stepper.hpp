@@ -27,7 +27,7 @@ namespace a4988 {
     };
 
     constexpr inline log_level_t LOG_LEVEL = log_level_t::INFO;
-    constexpr inline const char* TAG = "Stepper";
+    constexpr inline const char* TAG       = "Stepper";
 
     template <log_level_t level, typename... Args>
     void log(const char* fmt, Args&&... args) {
@@ -523,7 +523,7 @@ namespace a4988 {
                 .duration1 = half_period,
                 .level1 = 0
             };
-
+  
             // Transmission settings
             const rmt_transmit_config_t config = {
                 .loop_count = static_cast<int>(steps),
@@ -579,13 +579,13 @@ namespace a4988 {
             
             // Find the number of ticks per step
             const uint32_t num_of_ticks_per_steps = m_config.rmt_frequency / speed;
-            const uint32_t half_period = num_of_ticks_per_steps / 2;
+            const uint32_t half_period = num_of_ticks_per_steps / 2U;
 
             // Prepare steps
             const rmt_symbol_word_t words = {
                 .duration0 = half_period,
                 .level0 = 1,
-                .duration1 = half_period,
+                .duration1 = static_cast<uint32_t>(half_period),
                 .level1 = 0
             };
 

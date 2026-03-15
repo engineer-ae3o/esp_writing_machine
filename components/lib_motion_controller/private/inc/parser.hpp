@@ -55,7 +55,7 @@ namespace gcode::parser {
      */
     std::expected<line_t, error_t> parse_line(const char* line);
 
-} // namespace gcode
+} // namespace gcode::parser
 
 
 #endif // PARSER_HPP_

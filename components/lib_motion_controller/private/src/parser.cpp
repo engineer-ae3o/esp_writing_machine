@@ -135,12 +135,12 @@ namespace gcode::parser {
             }
         }
 
-        // Make sure that `G0` and `G1` both have valid parameters after them
+        // Ensure that `G0` and `G1` both have valid parameters after them.
         // The feedrate is optional (lol), but x and y are not. A valid gcode
-        // line with `G0` and `G1` has x and y, not only one
+        // line with `G0` and `G1` has x and y, not only one of them
         if (!parsed_line.params->x || !parsed_line.params->y) return std::unexpected(error_t::MISSING_PARAMETER);
         
         return parsed_line;
     }
 
-} // namespace gcode
+} // namespace gcode::parser

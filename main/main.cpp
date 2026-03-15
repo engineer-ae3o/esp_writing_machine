@@ -15,7 +15,21 @@ extern "C" {
         constexpr const char TAG[] = "MAIN";
 
         constexpr a4988::config_t config = {
+
+            .step_pin = config::X_STEP_PIN,
+            .dir_pin = config::X_DIR_PIN,
+            .ena_pin = config::X_ENA_PIN,
+
+            .rmt_frequency = 1'000'000,
+            .dma_buf_size = 1'024,
             
+            .queue_depth = 25,
+            
+            .microstep_1 = config::MICROSTEP_1_PIN,
+            .microstep_2 = config::MICROSTEP_2_PIN,
+            .microstep_3 = config::MICROSTEP_3_PIN,
+
+            .is_active_low = true
         };
 
         auto stepper = a4988::driver_t<a4988::microstep_t::ONE_SIXTEENTH>::create(config);

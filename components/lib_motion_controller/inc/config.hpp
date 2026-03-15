@@ -16,14 +16,15 @@ namespace gcode::config {
 
     constexpr inline log_level_t LOG_LEVEL               = log_level_t::INFO;
     constexpr inline bool ASSERTS_ENABLED                = true;
+    
+    constexpr inline const char TAG[]                    = "Gcode-Planner";
 
     constexpr inline std::size_t MAX_FILE_NAME_LENGTH    = 64;
     constexpr inline std::size_t MAX_GCODE_LINE_LENGTH   = 128;
 
     constexpr inline std::size_t MAX_LINE_PARSE_ERROR    = 5;
     
-    constexpr inline const char TAG[]                    = "Gcode-Planner";
-}
+} // namespace gcode::config
 
 
 #endif // CONFIG_HPP_

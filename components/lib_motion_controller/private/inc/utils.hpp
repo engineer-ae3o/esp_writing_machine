@@ -41,7 +41,7 @@ namespace gcode::utils {
         }
     }
 
-} // namespace utils
+} // namespace gcode::utils
 
 
 #define ASSERT(cond) utils::assert_check((cond), #cond)

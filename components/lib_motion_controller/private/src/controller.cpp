@@ -1,4 +1,5 @@
 #include "controller.hpp"
+#include "planner.hpp"
 #include "config.hpp"
 #include "utils.hpp"
 
@@ -104,7 +105,7 @@ namespace gcode {
     }
 
     void controller_t::control_motors(const parser::line_t& line) {
-        // TODO: Control motors
+        planner::plan_motion(line);
     }
 
     error_t controller_t::get_error_from_parser_error(parser::error_t error) {
@@ -161,7 +162,7 @@ namespace gcode {
                     
                     break;
 
-                case state_t::RUNNING:
+                case state_t::RUNNING: {
                     // Check for events periodically. The only events that change the
                     // state are the PAUSE_SESSION and STOP_SESSION events
                     if (xQueueReceive(driver->m_event_queue, &event, 0) == pdTRUE) {
@@ -236,6 +237,7 @@ namespace gcode {
                     // been read and parsed without any errors. 
                     driver->control_motors(ret.value());
                     break;
+                }
 
                 case state_t::PAUSED:
                     // Sleep till we get a START_SESSION or RESUME_SESSION event.
