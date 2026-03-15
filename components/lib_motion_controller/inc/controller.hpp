@@ -14,7 +14,7 @@
 #include <array>
 
 
-namespace gcode {
+namespace gcode::controller {
     
     struct config_t {
         // Set the servo motor's angle for up and down motion of the pen
@@ -119,12 +119,11 @@ namespace gcode {
     private:
         controller_t(const config_t&);
         void cleanup();
-        void control_motors(const parser::line_t& line);
         static void planner_task(void* arg);
         error_t get_error_from_parser_error(parser::error_t error);
     };
 
-} // namespace gcode
+} // namespace gcode::controller
 
 
 #endif // CONTROLLER_HPP_

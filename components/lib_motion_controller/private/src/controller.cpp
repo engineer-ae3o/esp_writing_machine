@@ -6,10 +6,10 @@
 #include <cstring>
 
 
-namespace gcode {
+namespace gcode::controller {
 
     controller_t::~controller_t() {
-        cleanup();
+        if (m_is_initialized) cleanup();
     }
 
     controller_t& controller_t::get_instance(const config_t& config) {
@@ -34,6 +34,8 @@ namespace gcode {
         BaseType_t ret = xTaskCreate(planner_task, "PlannerTask", m_config.task_stack_size,
                                      this, m_config.task_priority, nullptr);
         ASSERT(ret == pdPASS);
+
+        planner::init(m_config);
 
         m_is_initialized = true;
     }
@@ -103,11 +105,7 @@ namespace gcode {
         xQueueSend(m_event_queue, &event, portMAX_DELAY);
         m_is_initialized = false;
     }
-
-    void controller_t::control_motors(const parser::line_t& line) {
-        planner::plan_motion(line);
-    }
-
+    
     error_t controller_t::get_error_from_parser_error(parser::error_t error) {
         switch (error) {
             case parser::error_t::INVALID_COMMAND:   return error_t::INVALID_COMMAND;
@@ -220,7 +218,7 @@ namespace gcode {
                             // Set error values
                             session_done.error = driver->get_error_from_parser_error(ret.error());
                             session_done.error_line.emplace();
-                            strlcpy(session_done.error_line->data(), gcode_line.data(), session_done.error_line->size());
+                            strncpy(session_done.error_line->data(), gcode_line.data(), session_done.error_line->size());
                             session_done.line_num = line_count;
 
                             driver->m_state = state_t::STOPPED;
@@ -235,7 +233,29 @@ namespace gcode {
 
                     // If we get here, that means the line has
                     // been read and parsed without any errors. 
-                    driver->control_motors(ret.value());
+                    auto rc = planner::plan_motion(ret.value());
+                    switch (rc) {
+                        case planner::motion_return_t::END:
+                            utils::log<config::log_level_t::INFO>("Operation complete");
+                            session_done.error = error_t::NONE;
+                            driver->m_state = state_t::STOPPED;
+                            utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
+                            break;
+
+                        // Resume operation. Such errors are not detrimental to the behaviour of the system
+                        case planner::motion_return_t::ERROR:
+                            utils::log<config::log_level_t::ERROR>("Error during motion planning. Continuing");
+                            break;
+
+                        case planner::motion_return_t::SUCCESS:
+                            utils::log<config::log_level_t::INFO>("Done with motion planning of parsed gcode line. Continuing");
+                            break;
+
+                        default:
+                            utils::log<config::log_level_t::WARN>("Invalid motion planning return value");
+                            break;
+                    }
+
                     break;
                 }
 
@@ -289,11 +309,13 @@ namespace gcode {
                     break;
             }
         }
-
-        driver->m_is_initialized = false;
+        
+        planner::teardown();
 
         vQueueDelete(driver->m_event_queue);
         vTaskDelete(nullptr);
+
+        driver->m_is_initialized = false;
     }
 
-} // namespace gcode
+} // namespace gcode::controller
