@@ -30,7 +30,7 @@ namespace config {
     constexpr inline gpio_num_t ENC_A_PIN                    = GPIO_NUM_35;
     constexpr inline gpio_num_t ENC_B_PIN                    = GPIO_NUM_32;
     constexpr inline gpio_num_t ENC_BTN_PIN                  = GPIO_NUM_33;
-    constexpr inline gpio_num_t RST_PIN                      = GPIO_NUM_15;
+    constexpr inline gpio_num_t RST_BTN_PIN                  = GPIO_NUM_15;
     constexpr inline gpio_num_t BEEPER_PIN                   = GPIO_NUM_2;
     
     constexpr inline gpio_num_t SERVO_PIN                    = GPIO_NUM_4;

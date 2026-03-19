@@ -326,7 +326,7 @@ namespace a4988 {
                 return std::unexpected(ret);
             }
 
-            return std::move(stepper);
+            return stepper;
         }
 
         /**
@@ -513,8 +513,8 @@ namespace a4988 {
             gpio_set_level(m_config.dir_pin, static_cast<uint8_t>(dir));
             
             // Find the number of ticks per step
-            const uint32_t num_of_ticks_per_steps = m_config.rmt_frequency / speed;
-            const uint32_t half_period = num_of_ticks_per_steps / 2;
+            const uint16_t num_of_ticks_per_steps = m_config.rmt_frequency / speed;
+            const uint16_t half_period = num_of_ticks_per_steps / 2;
 
             // Prepare steps
             const rmt_symbol_word_t words = {
@@ -578,14 +578,14 @@ namespace a4988 {
             gpio_set_level(m_config.dir_pin, static_cast<uint8_t>(dir));
             
             // Find the number of ticks per step
-            const uint32_t num_of_ticks_per_steps = m_config.rmt_frequency / speed;
-            const uint32_t half_period = num_of_ticks_per_steps / 2U;
+            const uint16_t num_of_ticks_per_steps = m_config.rmt_frequency / speed;
+            const uint16_t half_period = num_of_ticks_per_steps / 2U;
 
             // Prepare steps
             const rmt_symbol_word_t words = {
                 .duration0 = half_period,
                 .level0 = 1,
-                .duration1 = static_cast<uint32_t>(half_period),
+                .duration1 = half_period,
                 .level1 = 0
             };
 

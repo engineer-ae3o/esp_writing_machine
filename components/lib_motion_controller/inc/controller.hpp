@@ -48,7 +48,7 @@ namespace gcode::controller {
         controller_t& operator=(controller_t&&) = delete;
 
         // Useable functions
-        [[nodiscard]] static controller_t& get_instance(const types::config_t& config = {});
+        [[nodiscard]] static controller_t& get_instance(const types::config_t& config);
         void init(const types::config_t& config);
         void create_session(const types::session_t& session);
         void send_event(types::event_t event);

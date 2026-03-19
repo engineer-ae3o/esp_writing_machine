@@ -374,7 +374,7 @@ namespace http {
 
         utils::log<utils::log_level_t::INFO>(TAG, "HTTP GET API handler triggered. Serving index.html");
 
-        FILE* file_handle = fopen(config::INDEX_HTML_FILE_BASE_PATH, "r");
+        FILE* file_handle = fopen(config::INDEX_HTML_FILE_PATH, "r");
         if (!file_handle) {
             httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "index.html not found on filesystem");
             utils::log<utils::log_level_t::ERROR>(TAG, "index.html not found on filesystem");
@@ -420,7 +420,7 @@ namespace http {
         // not aware of any other threads or TUs that may want to access the same
         // file so the user of this file must add synchronization themselves. This
         // allows for a simpler and easy to use API in `server.hpp` and `server.cpp`
-        FILE* file_handle = fopen(config::GCODE_FILE_BASE_PATH, "w");
+        FILE* file_handle = fopen(config::GCODE_FILE_PATH, "w");
         if (!file_handle) {
             httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
             return ESP_FAIL;
@@ -441,17 +441,14 @@ namespace http {
 
             if (received_bytes == HTTPD_SOCK_ERR_TIMEOUT) {
                 utils::log<utils::log_level_t::ERROR>(TAG, "Timeout while waiting for socket recv()");
-                fflush(file_handle);
                 fclose(file_handle);
                 return ESP_ERR_WIFI_TIMEOUT;
             } else if (received_bytes == HTTPD_SOCK_ERR_FAIL) {
                 utils::log<utils::log_level_t::ERROR>(TAG, "Unrecoverable error while calling recv()");
-                fflush(file_handle);
                 fclose(file_handle);
                 return ESP_FAIL;
             } else if (received_bytes <= 0) {
                 utils::log<utils::log_level_t::ERROR>(TAG, "HTTP server failure: Peer likely closed the connection");       
-                fflush(file_handle);
                 fclose(file_handle);
                 return ESP_FAIL;
             }
@@ -460,8 +457,7 @@ namespace http {
 
             remaining_bytes -= received_bytes;
         }
-
-        fflush(file_handle);
+        
         fclose(file_handle);
 
         httpd_resp_send(request, "File received successfully", HTTPD_RESP_USE_STRLEN);

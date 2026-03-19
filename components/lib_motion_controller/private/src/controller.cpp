@@ -12,7 +12,7 @@ namespace gcode::controller {
         if (m_is_initialized) cleanup();
     }
 
-    controller_t& controller_t::get_instance(const types::config_t& config = {}) {
+    controller_t& controller_t::get_instance(const types::config_t& config) {
         static controller_t instance(config);
         return instance;
     }
