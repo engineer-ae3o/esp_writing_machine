@@ -2,8 +2,8 @@
 #define PLANNER_HPP_
 
 
-#include "controller.hpp"
 #include "parser.hpp"
+#include "types.hpp"
 
 
 namespace gcode::planner {
@@ -14,7 +14,7 @@ namespace gcode::planner {
         ERROR
     };
 
-    void init(const controller::config_t& config);
+    void init(const types::config_t& config);
     [[nodiscard]] motion_return_t plan_motion(const parser::line_t& line);
     void teardown();
     void reset();

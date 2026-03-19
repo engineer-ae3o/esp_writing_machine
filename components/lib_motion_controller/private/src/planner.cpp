@@ -7,7 +7,7 @@
 
 namespace gcode::planner {
 
-    static controller::config_t s_config{};
+    static types::config_t s_config{};
     static bool s_is_absolute_coordinates{true};
     static bool s_is_unit_mm{true};
 
@@ -31,7 +31,7 @@ namespace gcode::planner {
     static void move_to(const position_t& final, const position_t& initial);
 
     // Public API
-    void init(const controller::config_t& config) {
+    void init(const types::config_t& config) {
         s_config = config;
         current = {};
     }
@@ -95,8 +95,8 @@ namespace gcode::planner {
     }
 
     void teardown() {
+        reset();
         s_config = {};
-        current = {};
     }
 
     // Static helpers

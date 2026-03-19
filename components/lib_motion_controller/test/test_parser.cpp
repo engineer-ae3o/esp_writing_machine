@@ -67,7 +67,7 @@ TEST_CASE("m_cmd_M3_trailing_whitespace", "[parser][m_cmd]")
 }
 
 
-// VALID G COMMANDS (no-param variants)
+// VALID G COMMANDS (no param variants)
 
 TEST_CASE("g_cmd_G20", "[parser][g_cmd]")
 {
