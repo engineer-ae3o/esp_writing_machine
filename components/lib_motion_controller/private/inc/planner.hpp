@@ -15,8 +15,9 @@ namespace gcode::planner {
     };
 
     void init(const controller::config_t& config);
-    motion_return_t plan_motion(const parser::line_t& line);
+    [[nodiscard]] motion_return_t plan_motion(const parser::line_t& line);
     void teardown();
+    void reset();
     
 } // namespace gcode::planner
 

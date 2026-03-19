@@ -12,7 +12,7 @@ namespace gcode::controller {
         if (m_is_initialized) cleanup();
     }
 
-    controller_t& controller_t::get_instance(const config_t& config) {
+    controller_t& controller_t::get_instance(const config_t& config = {}) {
         static controller_t instance(config);
         return instance;
     }
@@ -169,6 +169,8 @@ namespace gcode::controller {
                             utils::log<config::log_level_t::INFO>("State changed to PAUSED from RUNNING");
 
                         } else if (event == event_t::STOP_SESSION) {
+                            // Reset planner state since motion was interrupted
+                            planner::reset();
                             session_done.error = error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
                             driver->m_state = state_t::STOPPED;
                             utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
@@ -231,6 +233,10 @@ namespace gcode::controller {
                         break;
                     }
 
+                    // Reset the error counter on a successful line parse.
+                    // We are tracking consecutive line parse failures
+                    parse_error_count = 0;
+
                     // If we get here, that means the line has
                     // been read and parsed without any errors. 
                     auto rc = planner::plan_motion(ret.value());
@@ -285,7 +291,7 @@ namespace gcode::controller {
                     // Zero out variables in preparation for the next session (if any)
                     driver->m_session = {};
                     driver->m_session_active = false;
-                    gcode_line.fill((char)0);
+                    gcode_line.fill('\0');
 
                     event = event_t::NO_EVENT;
                     parse_error_count = 0;
@@ -296,7 +302,7 @@ namespace gcode::controller {
                         fclose(file_handle);
                         file_handle = nullptr;
                     }
-
+                    
                     utils::log<config::log_level_t::INFO>("Session (if any) stopped. Going to sleep");
 
                     driver->m_state = state_t::SLEEPING;
@@ -312,10 +318,10 @@ namespace gcode::controller {
         
         planner::teardown();
 
+        driver->m_is_initialized = false;
+
         vQueueDelete(driver->m_event_queue);
         vTaskDelete(nullptr);
-
-        driver->m_is_initialized = false;
     }
 
 } // namespace gcode::controller

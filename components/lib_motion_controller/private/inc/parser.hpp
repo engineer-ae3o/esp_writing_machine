@@ -53,7 +53,7 @@ namespace gcode::parser {
      * @return `std::expected<line_t, error_t>` The result of parsing
      *         the line, containing either a parsed line or an error code
      */
-    std::expected<line_t, error_t> parse_line(const char* line);
+    [[nodiscard]] std::expected<line_t, error_t> parse_line(const char* line);
 
 } // namespace gcode::parser
 

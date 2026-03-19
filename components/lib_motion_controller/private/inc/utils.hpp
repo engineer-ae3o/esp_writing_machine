@@ -34,8 +34,8 @@ namespace gcode::utils {
     inline void assert_check(bool cond, const char* msg, const std::source_location& loc = std::source_location::current()) {
         if constexpr (config::ASSERTS_ENABLED) {
             if (!cond) {
-                log<config::log_level_t::ERROR>("ASSERT", "Assert failed (%s). File: %s. Line: %u. Function: %s",
-                                        msg, loc.file_name(), loc.line(), loc.function_name());
+                log<config::log_level_t::ERROR>("Assert failed (%s). File: %s. Line: %u. Function: %s",
+                                                msg, loc.file_name(), loc.line(), loc.function_name());
                 panic(msg);
             }
         }
@@ -44,7 +44,7 @@ namespace gcode::utils {
 } // namespace gcode::utils
 
 
-#define ASSERT(cond) utils::assert_check((cond), #cond)
+#define ASSERT(cond) gcode::utils::assert_check((cond), #cond)
 
 
 #endif // UTILS_HPP_

@@ -8,22 +8,25 @@
 namespace gcode::planner {
 
     static controller::config_t s_config{};
-    static bool s_is_relative_coord{true};
+    static bool s_is_absolute_coordinates{true};
     static bool s_is_unit_mm{true};
 
     struct position_t {
         float x{}, y{};
     };
 
-    position_t current{};
-
+    // Origin
     static constexpr position_t HOME_AXES = {
         .x = 0.0f, .y = 0.0f
     };
 
+    // To keep track of where we are during any and all motion
+    static position_t current{};
+
+
     // Forward declaration
-    static void pen_up();
-    static void pen_down();
+    static inline void pen_up();
+    static inline void pen_down();
     static void step_motors(const parser::param_t& param);
     static void move_to(const position_t& final, const position_t& initial);
 
@@ -36,7 +39,7 @@ namespace gcode::planner {
     motion_return_t plan_motion(const parser::line_t& line) {
 
         // If no type, that means a pure comment line
-        if (!line.type) return;
+        if (!line.type) return motion_return_t::SUCCESS;
 
         switch (line.type.value()) {
             case parser::type_t::G0:
@@ -61,16 +64,15 @@ namespace gcode::planner {
                 return motion_return_t::SUCCESS;
 
             case parser::type_t::G90:
-                s_is_relative_coord = false;
+                s_is_absolute_coordinates = true;
                 return motion_return_t::SUCCESS;
 
             case parser::type_t::G91:
-                s_is_relative_coord = true;
+                s_is_absolute_coordinates = false;
                 return motion_return_t::SUCCESS;
 
             case parser::type_t::M2:
-                pen_up();
-                move_to(HOME_AXES, current);
+                reset();
                 return motion_return_t::END;
                 
             case parser::type_t::M3:
@@ -85,6 +87,12 @@ namespace gcode::planner {
                 return motion_return_t::ERROR;
         }
     }
+    
+    void reset() {
+        pen_up();
+        move_to(HOME_AXES, current);
+        current = {};
+    }
 
     void teardown() {
         s_config = {};
@@ -92,12 +100,12 @@ namespace gcode::planner {
     }
 
     // Static helpers
-    static void pen_up() {
+    static inline void pen_up() {
         s_config.servo_set_angle(config::SERVO_PEN_UP_ANGLE);
         vTaskDelay(pdMS_TO_TICKS(config::PEN_DWELL_TIME_MS));
     }
 
-    static void pen_down() {
+    static inline void pen_down() {
         s_config.servo_set_angle(config::SERVO_PEN_DOWN_ANGLE);
         vTaskDelay(pdMS_TO_TICKS(config::PEN_DWELL_TIME_MS));
     }

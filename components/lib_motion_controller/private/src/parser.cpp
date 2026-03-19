@@ -31,11 +31,13 @@ namespace gcode::parser {
                 continue;
             }
 
-            char letter = toupper(*line++);
+            // Ah, the beautiful world of casting
+            const char letter = static_cast<char>(toupper(static_cast<unsigned char>(*line++)));
 
             char* end{};
-            float val = strtof(line, &end);
+            const float val = strtof(line, &end);
             if (line == end) return std::unexpected(error_t::MISSING_PARAMETER);
+
             // Advance pointer to next character after the last digit of the extracted float
             line = end;
 

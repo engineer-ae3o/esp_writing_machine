@@ -10,6 +10,7 @@
 #include "config.hpp"
 
 #include <cstdint>
+#include <atomic>
 #include <cstdio>
 #include <array>
 
@@ -83,13 +84,14 @@ namespace gcode::controller {
         config_t m_config{};
         session_t m_session{};
 
-        bool m_is_initialized{};
-        bool m_session_active{};
-        bool m_shutdown_requested{};
+        std::atomic<bool> m_is_initialized{};
+        std::atomic<bool> m_session_active{};
+        std::atomic<bool> m_shutdown_requested{};
 
         QueueHandle_t m_event_queue{};
 
-        state_t m_state{state_t::SLEEPING};
+        // Is modified by the planner task and can be read by another thread
+        std::atomic<state_t> m_state{state_t::SLEEPING};
         
     public:
         // Remove the default constructor
@@ -107,14 +109,16 @@ namespace gcode::controller {
         controller_t& operator=(controller_t&&) = delete;
 
         // Useable functions
-        static controller_t& get_instance(const config_t& config);
+        [[nodiscard]] static controller_t& get_instance(const config_t& config = {});
         void init(const config_t& config);
         void create_session(const session_t& session);
         void send_event(event_t event);
-        state_t get_state();
+        [[nodiscard]] state_t get_state();
         void shutdown();
-        constexpr const char* event_to_string(event_t event);
-        constexpr const char* controller_state_to_string(state_t state);
+
+        // Utility functions for conversion
+        [[nodiscard]] static constexpr const char* event_to_string(event_t event);
+        [[nodiscard]] static constexpr const char* controller_state_to_string(state_t state);
 
     private:
         controller_t(const config_t&);
