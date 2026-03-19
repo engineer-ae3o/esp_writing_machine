@@ -11,16 +11,31 @@
 
 namespace gcode::types {
 
+    enum class direction_t : uint8_t {
+        FORWARD = 0,
+        BACKWARD
+    };
+
     struct config_t {
         // Set the servo motor's angle for up and down motion of the pen
         void(*servo_set_angle)(uint32_t angle){};
 
-        // Send steps. Straightforward. `true` represents the forward direction
-        void(*send_steps)(uint32_t steps, bool dir, uint32_t speed, uint32_t accel){};
+        // Send steps. Straightforward. Acceleration should
+        // be handled internally by the hardware drivers
+        void(*send_steps_x)(uint32_t steps, direction_t dir, uint32_t speed){};
+        void(*send_steps_y)(uint32_t steps, direction_t dir, uint32_t speed){};
 
-        uint8_t queue_size{};
-        uint8_t task_priority{};
-        uint16_t task_stack_size{};
+        // An optional callback that sends all steps x and y synchronously
+        // without having to rely on Brasenham's line interpolation algorithm
+        // It will be used if available over the above two when there is a
+        // need to send x and y steps simultaneously. Note that the send x and
+        // y steps functions still have be present even if this one is present
+        std::optional<void(*)(uint32_t steps_x, direction_t dir_x, uint32_t speed_x,
+                              uint32_t steps_y, direction_t dir_y, uint32_t speed_y)> send_steps_sync{std::nullopt};
+
+        size_t queue_size{config::DEFAULT_QUEUE_SIZE};
+        uint8_t task_priority{config::DEFAULT_TASK_PRIORITY};
+        uint16_t task_stack_size_bytes{config::DEFAULT_TASK_STACK_SIZE_BYTES};
     };
 
     enum class error_t : uint8_t {

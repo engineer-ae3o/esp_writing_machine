@@ -18,10 +18,8 @@ namespace gcode::planner {
             return (x == other.x) && (y == other.y);
         }
         
-        position_t& operator+(const position_t& other) {
-            x += other.x;
-            y += other.y;
-            return *this;
+        position_t operator+(const position_t& other) {
+            return { x + other.x, y + other.y };
         }
     };
 
@@ -101,7 +99,6 @@ namespace gcode::planner {
     void reset() {
         pen_up();
         move_to(HOME_AXES, s_current);
-        s_current = {};
     }
 
     void teardown() {
@@ -122,25 +119,57 @@ namespace gcode::planner {
     
     static void step_motors(const parser::param_t& coord) {
         
-        // Where we are starting our motion from
+        // Where we are starting our motion relative from
         const position_t& old = s_is_absolute_coordinates ? HOME_AXES : s_current;
 
         // Where we want to end up
-        position_t final = {
-            .x = coord.x.value_or(0.0f),
-            .y = coord.y.value_or(0.0f)
+        const position_t final = {
+            .x = coord.x.value_or(0.0f) + old.x,
+            .y = coord.y.value_or(0.0f) + old.y
         };
 
         move_to(final, old, coord.feed_rate.value_or(config::DEFAULT_FEED_RATE));
-
-        s_current = final + old;
+        s_current = final;
     }
     
     static void move_to(const position_t& final, const position_t& initial, uint32_t feed_rate = config::DEFAULT_FEED_RATE) {
         // No movement. We are already there
         if (final == initial) return;
 
+        // Delta for both axes. These are either in milimetres or inches
+        const float dx = final.x - initial.x;
+        const float dy = final.y - initial.y;
 
+        // Get direction for both axes
+        const types::direction_t x_dir = (dx >= 0) ? types::direction_t::FORWARD : types::direction_t::BACKWARD;
+        const types::direction_t y_dir = (dy >= 0) ? types::direction_t::FORWARD : types::direction_t::BACKWARD;
+        
+        // Convert to milimetres based on the `s_is_unit_mm` flag
+        const float dx_mm = s_is_unit_mm ? dx : dx * 25.4f;
+        const float dy_mm = s_is_unit_mm ? dy : dy * 25.4f;
+        
+        // Number of steps. Loss in precision is ineveitable
+        const uint32_t dx_steps = static_cast<uint32_t>(dx_mm * config::STEPS_PER_MM);
+        const uint32_t dy_steps = static_cast<uint32_t>(dy_mm * config::STEPS_PER_MM);
+
+        // Get speed `(steps/sec)` from feedrate `(mm/min)` parameter
+        const uint32_t speed = static_cast<uint32_t>(feed_rate * (config::STEPS_PER_MM / 60.0f));
+
+        if (s_config.send_steps_sync) {
+            // God have mercy
+            s_config.send_steps_sync.value()(dx_steps, x_dir, speed, dy_steps, y_dir, speed);
+            // And even a goto. Can't this get any worse?
+            // Once a C dev, always a C dev, I guess
+            goto done;
+        }
+
+        // Brasenham's line interpolation algorithm implementation if
+        // no function is present to synchronously move both motors
+        
+
+        done:
+            // Update our position
+            s_current = final;
     }
 
 } // namespace gcode::planner

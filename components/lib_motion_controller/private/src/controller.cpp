@@ -23,15 +23,16 @@ namespace gcode::controller {
         m_config = config;
 
         ASSERT(m_config.servo_set_angle);
-        ASSERT(m_config.send_steps);
+        ASSERT(m_config.send_steps_x);
+        ASSERT(m_config.send_steps_y);
         ASSERT(m_config.queue_size > 0);
         ASSERT(m_config.task_priority > 0);
-        ASSERT(m_config.task_stack_size > 0);
+        ASSERT(m_config.task_stack_size_bytes > 0);
 
         m_event_queue = xQueueCreate(m_config.queue_size, sizeof(types::event_t));
         ASSERT(m_event_queue);
 
-        BaseType_t ret = xTaskCreate(planner_task, "PlannerTask", m_config.task_stack_size,
+        BaseType_t ret = xTaskCreate(planner_task, "PlannerTask", m_config.task_stack_size_bytes,
                                      this, m_config.task_priority, nullptr);
         ASSERT(ret == pdPASS);
 
@@ -261,6 +262,7 @@ namespace gcode::controller {
                             utils::log<config::log_level_t::WARN>("Invalid motion planning return value");
                             break;
                     }
+                    break;
                 }
 
                 case types::state_t::PAUSED:
