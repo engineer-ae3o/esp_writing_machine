@@ -28,8 +28,7 @@ namespace gcode::controller {
         std::atomic<bool> m_shutdown_requested{};
 
         QueueHandle_t m_event_queue{};
-
-        // Is modified by the planner task and can be read by another thread
+        
         std::atomic<types::state_t> m_state{types::state_t::SLEEPING};
         
     public:

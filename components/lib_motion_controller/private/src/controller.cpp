@@ -129,7 +129,7 @@ namespace gcode::controller {
         FILE* file_handle{};
         std::array<char, config::MAX_GCODE_LINE_LENGTH> gcode_line{};
 
-        driver->m_state = {types::state_t::SLEEPING};
+        driver->m_state = types::state_t::SLEEPING;
         driver->m_session = {};
 
         while (!driver->m_shutdown_requested) {
@@ -167,19 +167,18 @@ namespace gcode::controller {
                         if (event == types::event_t::PAUSE_SESSION) {
                             driver->m_state = types::state_t::PAUSED;
                             utils::log<config::log_level_t::INFO>("State changed to PAUSED from RUNNING");
-
+                            break;
                         } else if (event == types::event_t::STOP_SESSION) {
                             // Reset planner state since motion was interrupted
                             planner::reset();
                             session_done.error = types::error_t::OPERATION_STOPPED_BEFORE_COMPLETION;
                             driver->m_state = types::state_t::STOPPED;
                             utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
-
+                            break;
                         } else {
                             utils::log<config::log_level_t::WARN>("Invalid event for the current state (RUNNING): %s. Resuming operation",
                                                                   driver->event_to_string(event));
                         }
-                        break;
                     }
                     
                     // Read file and check for errors
@@ -212,7 +211,7 @@ namespace gcode::controller {
                     if (!ret) {
                         parse_error_count++;
 
-                        // Only end the session when we get past MAX_LINE_PARSE_ERROR errors
+                        // Only end the session when we get to/past MAX_LINE_PARSE_ERROR errors
                         if (parse_error_count >= config::MAX_LINE_PARSE_ERROR) {
                             parse_error_count = 0;
                             utils::log<config::log_level_t::ERROR>("Too many parsing errors. Exiting session");
@@ -239,21 +238,22 @@ namespace gcode::controller {
 
                     // If we get here, that means the line has
                     // been read and parsed without any errors. 
-                    auto rc = planner::plan_motion(ret.value());
+                    auto rc = planner::motion(ret.value());
                     switch (rc) {
-                        case planner::motion_return_t::END:
+                        case planner::ret_t::END:
                             utils::log<config::log_level_t::INFO>("Operation complete");
-                            session_done.error= types::error_t::NONE;
+                            session_done.error = types::error_t::NONE;
                             driver->m_state = types::state_t::STOPPED;
                             utils::log<config::log_level_t::INFO>("State changed to STOPPED from RUNNING");
                             break;
 
-                        // Resume operation. Such errors are not detrimental to the behaviour of the system
-                        case planner::motion_return_t::ERROR:
-                            utils::log<config::log_level_t::ERROR>("Error during motion planning. Continuing");
+                        // Resume operation. Such errors are not detrimental to the behaviour of the system,
+                        // hence, they are logged with the `WARN` log level
+                        case planner::ret_t::ERROR:
+                            utils::log<config::log_level_t::WARN>("Error during motion planning. Continuing");
                             break;
 
-                        case planner::motion_return_t::SUCCESS:
+                        case planner::ret_t::SUCCESS:
                             utils::log<config::log_level_t::INFO>("Done with motion planning of parsed gcode line. Continuing");
                             break;
 
@@ -261,8 +261,6 @@ namespace gcode::controller {
                             utils::log<config::log_level_t::WARN>("Invalid motion planning return value");
                             break;
                     }
-
-                    break;
                 }
 
                 case types::state_t::PAUSED:

@@ -37,6 +37,9 @@ namespace gcode::config {
 
     // Microstepping
     constexpr inline uint32_t MICROSTEP                  = 16;
+
+    // Default feedrate. Used for rapid moves
+    constexpr inline uint32_t DEFAULT_FEED_RATE          = 500;
     
 } // namespace gcode::config
 

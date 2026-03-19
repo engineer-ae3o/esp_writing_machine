@@ -47,8 +47,8 @@ namespace gcode::parser {
      * @brief Parses a line of G-code and returns a line_t
      *        struct on success, or an error_t on failure.
      * 
-     * @param line The line of G-code to parse. It reads parses until a
-     *             newline character or null terminator is encountered.
+     * @param line The line of G-code to parse. It parses until the newline
+     *             character or until the null terminator is encountered.
      * 
      * @return `std::expected<line_t, error_t>` The result of parsing
      *         the line, containing either a parsed line or an error code

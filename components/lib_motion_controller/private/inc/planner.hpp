@@ -8,14 +8,14 @@
 
 namespace gcode::planner {
 
-    enum class motion_return_t : uint8_t {
+    enum class ret_t : uint8_t {
         SUCCESS = 0,
         END,
         ERROR
     };
 
     void init(const types::config_t& config);
-    [[nodiscard]] motion_return_t plan_motion(const parser::line_t& line);
+    [[nodiscard]] ret_t motion(const parser::line_t& line);
     void teardown();
     void reset();
     
