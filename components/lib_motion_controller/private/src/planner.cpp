@@ -3,6 +3,7 @@
 
 #include "planner.hpp"
 #include "config.hpp"
+#include "utils.hpp"
 
 
 namespace gcode::planner {
@@ -148,9 +149,9 @@ namespace gcode::planner {
         const float dx_mm = s_is_unit_mm ? dx : dx * 25.4f;
         const float dy_mm = s_is_unit_mm ? dy : dy * 25.4f;
         
-        // Number of steps. Loss in precision is ineveitable
-        const uint32_t dx_steps = static_cast<uint32_t>(dx_mm * config::STEPS_PER_MM);
-        const uint32_t dy_steps = static_cast<uint32_t>(dy_mm * config::STEPS_PER_MM);
+        // Number of steps. Loss in precision is ineveitable. Also, make positive
+        const uint32_t dx_steps = static_cast<uint32_t>(std::abs(dx_mm) * config::STEPS_PER_MM);
+        const uint32_t dy_steps = static_cast<uint32_t>(std::abs(dy_mm) * config::STEPS_PER_MM);
 
         // Get speed `(steps/sec)` from feedrate `(mm/min)` parameter
         const uint32_t speed = static_cast<uint32_t>(feed_rate * (config::STEPS_PER_MM / 60.0f));
@@ -158,18 +159,48 @@ namespace gcode::planner {
         if (s_config.send_steps_sync) {
             // God have mercy
             s_config.send_steps_sync.value()(dx_steps, x_dir, speed, dy_steps, y_dir, speed);
-            // And even a goto. Can't this get any worse?
-            // Once a C dev, always a C dev, I guess
-            goto done;
+            s_current = final;
+            return;
         }
 
         // Brasenham's line interpolation algorithm implementation if
         // no function is present to synchronously move both motors
+        const uint32_t dominant_axis_steps = (dx_steps >= dy_steps) ? dx_steps : dy_steps;
+        const bool is_x_dominant = dominant_axis_steps == dx_steps;
+        const uint32_t recessive_axis_steps = is_x_dominant ? dy_steps : dx_steps;
         
+        int32_t error = dominant_axis_steps - recessive_axis_steps;
+        uint32_t steps_remaining = dominant_axis_steps;
 
-        done:
-            // Update our position
-            s_current = final;
+        uint32_t dominant_steps = 0;
+
+        while (steps_remaining--) {
+            // Increment dominant step counter
+            dominant_steps++;
+
+            error -= recessive_axis_steps;
+            if (error < 0) {
+                // Step dominant axis
+                is_x_dominant ? s_config.send_steps_x(dominant_steps, x_dir, speed)
+                              : s_config.send_steps_y(dominant_steps, y_dir, speed);
+
+                // Step recessive axis
+                !is_x_dominant ? s_config.send_steps_x(1, x_dir, speed)
+                               : s_config.send_steps_y(1, y_dir, speed);
+
+                error += dominant_axis_steps;
+                dominant_steps = 0;
+            }
+        }
+
+        // Step dominant axis if there are any leftover steps on the dominant axis
+        if (dominant_steps > 0) {
+            is_x_dominant ? s_config.send_steps_x(dominant_steps, x_dir, speed)
+                          : s_config.send_steps_y(dominant_steps, y_dir, speed);
+        }
+
+        // Update our position
+        s_current = final;
     }
 
 } // namespace gcode::planner
