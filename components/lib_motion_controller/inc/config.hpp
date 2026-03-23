@@ -35,20 +35,23 @@ namespace gcode::config {
     // How long it takes the servo motor to move the pen
     constexpr inline uint32_t PEN_DWELL_TIME_MS              = 30;
 
-    // Number of steps the stepper motor needs to make a full revolution
-    constexpr inline uint32_t STEPS_PER_REV                  = 200;
-
     // Hardware dependent settings. Set as per your hardware
+    // Stepper rating
+    constexpr inline float STEPPER_DEGREE_PER_STEP           = 1.8;
+    
+    // Number of steps the stepper motor needs to make a full revolution
+    constexpr inline float STEPS_PER_FULL_REV                = 360.0f / STEPPER_DEGREE_PER_STEP;
+
     // Microstepping
     constexpr inline uint32_t MICROSTEP                      = 16;
     
     // Drive mechanism: how many milimetres make a revolution
-    constexpr inline uint32_t MM_PER_REV                     = 40;
+    constexpr inline float MM_PER_REV                        = 40;
     
     // Conversion factor from milimetres to steps: How many steps needed
     // to move 1mm. Depends on the microstepping, steps per revolution and
     // milimetres per full revolution
-    constexpr inline uint32_t STEPS_PER_MM                   = MICROSTEP * STEPS_PER_REV / MM_PER_REV;
+    constexpr inline float STEPS_PER_MM                      = MICROSTEP * STEPS_PER_FULL_REV / MM_PER_REV;
 
     // Default feedrate. Used for rapid moves `(mm/min)`
     constexpr inline uint32_t DEFAULT_FEED_RATE              = 500;
