@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
+#include <expected>
 #include <optional>
 #include <utility>
 
@@ -62,11 +63,11 @@ namespace servo {
          * @param config Config struct holding details regarding the
          *               servo instance to be created
          * 
-         * @return An `std::pair` containing the created object and an
+         * @return An `std::expected` containing the created object and an
          *        error code on success. An `std::nullopt` object and the
          *        associated error code
          */
-        static std::pair<std::optional<servo_t>, esp_err_t> create(const config_t& config);
+        static std::expected<std::optional<servo_t>, esp_err_t> create(const config_t& config);
 
         /**
          * @brief Initializes a servo motor on given gpio pin

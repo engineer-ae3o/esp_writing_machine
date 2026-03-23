@@ -74,17 +74,17 @@ namespace servo {
         return *this;
     }
 
-    std::pair<std::optional<servo_t>, esp_err_t> servo_t::create(const config_t& config) {
+    std::expected<std::optional<servo_t>, esp_err_t> servo_t::create(const config_t& config) {
         servo_t servo(config);
 
         esp_err_t ret = servo.init();
         if (ret != ESP_OK) {
             log<log_level_t::ERROR>("Failed to initialize servo instance");
             servo.cleanup();
-            return {std::nullopt, ret};
+            return std::unexpected(ret);
         }
 
-        return {std::move(servo), ESP_OK};
+        return servo;
     }
 
     [[nodiscard]] esp_err_t servo_t::init() {

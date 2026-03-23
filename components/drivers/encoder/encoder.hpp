@@ -9,6 +9,7 @@
 #include "driver/pulse_cnt.h"
 #include "esp_err.h"
 
+#include <expected>
 #include <optional>
 #include <utility>
 #include <memory>
@@ -89,11 +90,11 @@ namespace enc {
          * @param pin_a The A pin of the encoder
          * @param pin_b The B pin of the encoder
          * 
-         * @return An `std::pair` containing the created object and an
-         *        error code on success. It returns `nullptr` and the
-         *        associated error code on failure
+         * @return An `std::expected` containing the created object and
+         *         an error code on success. It returns `nullptr` and the
+         *         associated error code on failure
          */
-        static std::pair<std::unique_ptr<encoder_t>, esp_err_t> create(gpio_num_t pin_a, gpio_num_t pin_b);
+        static std::expected<std::unique_ptr<encoder_t>, esp_err_t> create(gpio_num_t pin_a, gpio_num_t pin_b);
 
         /**
          * @brief Initializes the encoder with the pins specified

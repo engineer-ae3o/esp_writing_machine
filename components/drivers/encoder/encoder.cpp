@@ -85,13 +85,13 @@ namespace enc {
             other.m_unit_handle = nullptr;
             other.m_chan_handle = nullptr;
             other.m_event_queue = nullptr;
-            other.m_last_time_us = {};
+            other.m_last_time_us = 0LL;
         }
         
         return *this;
     }
 
-    std::pair<std::unique_ptr<encoder_t>, esp_err_t> encoder_t::create(gpio_num_t pin_a, gpio_num_t pin_b) {
+    std::expected<std::unique_ptr<encoder_t>, esp_err_t> encoder_t::create(gpio_num_t pin_a, gpio_num_t pin_b) {
         // Object has to be heap allocated for it to be returned
         auto encoder = std::unique_ptr<encoder_t>(new encoder_t(pin_a, pin_b));
 
@@ -99,10 +99,10 @@ namespace enc {
         if (ret != ESP_OK) {
             log<log_level_t::ERROR>("Initialization failed: %s", esp_err_to_name(ret));
             encoder->cleanup();
-            return {nullptr, ret};
+            return std::unexpected(ret);
         }
         
-        return {std::move(encoder), ESP_OK};
+        return encoder;
     }
 
     [[nodiscard]] esp_err_t encoder_t::init() {

@@ -12,6 +12,7 @@
 
 #include "esp_err.h"
 
+#include <expected>
 #include <utility>
 #include <memory>
 
@@ -115,11 +116,11 @@ namespace st7920 {
          * @param config The configuration struct containing the
          *               data to initialize the driver with
          * 
-         * @return An `std::pair` containing the created object and an
+         * @return An `std::expected` containing the created object and an
          *        error code on success. It returns `nullptr` and the
          *        associated error code on failure
          */
-        static std::pair<std::unique_ptr<st7920_t>, esp_err_t> create(const config_t& config);
+        static std::expected<std::unique_ptr<st7920_t>, esp_err_t> create(const config_t& config);
 
         /**
          * @brief Initialize the ST7920 driver

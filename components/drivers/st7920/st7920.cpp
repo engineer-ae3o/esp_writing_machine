@@ -141,7 +141,7 @@ namespace st7920 {
     }
 
     // Public API
-    std::pair<std::unique_ptr<st7920_t>, esp_err_t> st7920_t::create(const config_t& config) {
+    std::expected<std::unique_ptr<st7920_t>, esp_err_t> st7920_t::create(const config_t& config) {
         // Object has to be heap allocated for it to be returned/moved as we
         // pass in a `this` pointer during initialization and the original
         // would have been destructed when we leave this function
@@ -151,10 +151,10 @@ namespace st7920 {
         if (ret != ESP_OK) {
             log<log_level_t::ERROR>("Initialization failed: %s", esp_err_to_name(ret));
             display->cleanup();
-            return {nullptr, ret};
+            return std::unexpected(ret);
         }
 
-        return {std::move(display), ESP_OK};
+        return display;
     }
 
     [[nodiscard]] esp_err_t st7920_t::init() {

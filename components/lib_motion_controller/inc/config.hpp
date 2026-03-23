@@ -37,7 +37,7 @@ namespace gcode::config {
 
     // Hardware dependent settings. Set as per your hardware
     // Stepper rating
-    constexpr inline float STEPPER_DEGREE_PER_STEP           = 1.8;
+    constexpr inline float STEPPER_DEGREE_PER_STEP           = 1.8f;
     
     // Number of steps the stepper motor needs to make a full revolution
     constexpr inline float STEPS_PER_FULL_REV                = 360.0f / STEPPER_DEGREE_PER_STEP;

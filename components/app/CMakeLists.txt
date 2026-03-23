@@ -1,10 +1,9 @@
 idf_component_register (
-                        SRCS "menu/menu.cpp"
+                        SRCS "display/display.cpp"
                              "screens/screens.cpp"
                              "server/server.cpp"
-                             "utils/utils.cpp"
                         INCLUDE_DIRS "config/"
-                                     "menu/"
+                                     "display/"
                                      "screens/"
                                      "server/"
                                      "utils/"
