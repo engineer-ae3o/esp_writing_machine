@@ -779,7 +779,7 @@ namespace display {
         lv_obj_t* prog_lbl = make_label(scr, "PROGRESS", C_DIM, F10);
         lv_obj_set_pos(prog_lbl, MX + 10, CONTENT_Y + 44);
 
-        char pct_buf[8];
+        char pct_buf[8]{};
         snprintf(pct_buf, sizeof(pct_buf), "%u%%", data.progress_pct);
         s_motion_pct_label = make_label(scr, pct_buf, C_SUBTEXT, F10);
         lv_obj_align(s_motion_pct_label, LV_ALIGN_TOP_RIGHT, -MX - 10, CONTENT_Y + 44);
@@ -1020,7 +1020,7 @@ namespace display {
                    "Returning to menu...", C_GREEN_TXT_DK);
     }
 
-    void show_toast_wifi_enabled(const char* ssid, const char* ip) {
+    void show_toast_wifi_enabled(const char* ssid = config::WIFI_SSID_NAME, const char* ip = config::IP_ADDRESS) {
         lv_obj_t* t = make_toast_base(C_BLUE_BG, C_BLUE);
         char sub[48];
         snprintf(sub, sizeof(sub), "AP: %s  \xc2\xb7  %s", ssid, ip);

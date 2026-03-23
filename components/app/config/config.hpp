@@ -1,5 +1,5 @@
-#ifndef CONFIG_HPP_
-#define CONFIG_HPP_
+#ifndef APP_CONFIG_HPP_
+#define APP_CONFIG_HPP_
 
 
 #include "driver/gpio.h"
@@ -19,9 +19,10 @@ namespace config {
     constexpr inline const char TEST_GCODE_FILE_3_PATH[]     = "/device/test/test_file_3.gcode";
 
     // WiFi settings
-    constexpr inline const char WIFI_SSID_NAME[]             = "ESP-Pen-Plotter";
     constexpr inline uint8_t MAX_WIFI_CONNECTIONS            = 4;
     constexpr inline uint32_t MAX_FILE_SIZE_BYTES            = 2'000'000;
+    constexpr inline const char WIFI_SSID_NAME[]             = "ESP-Pen-Plotter";
+    constexpr inline const char IP_ADDRESS[]                 = "192.168.4.1";
 
     // GPIO pin connections
     constexpr inline gpio_num_t MOSI_PIN                     = GPIO_NUM_25;
@@ -62,4 +63,4 @@ namespace config {
 }
 
 
-#endif // CONFIG_HPP_
+#endif // APP_CONFIG_HPP_

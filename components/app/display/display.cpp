@@ -17,10 +17,7 @@
 namespace display {
 
     // Tag
-    static constexpr const char TAG[] = "Display";
-
-    // Screens
-    static uint8_t s_current_screen_idx                     = 0;
+    static constexpr const char TAG[]                       = "Display";
     
     // Timeout
     static constexpr uint32_t POPUP_TIMEOUT_US              = 2'000'000;
@@ -36,6 +33,8 @@ namespace display {
     // General utilities
     static lv_display_t* s_display                          = nullptr;
     static esp_timer_handle_t s_lvgl_tick_timer             = nullptr;
+    static esp_timer_handle_t s_modal_close_timer           = nullptr;
+    static esp_timer_handle_t s_toast_close_timer           = nullptr;
     static ili9341_handle_t s_display_handle                = nullptr;
     static SemaphoreHandle_t s_display_mutex                = nullptr;
     static TimerHandle_t s_lvgl_timer_handler               = nullptr;
@@ -145,13 +144,6 @@ namespace display {
             s_bootup_scr = nullptr;
         }
 
-        for (auto& screen : screens) {
-            if (screen) {
-                lv_obj_delete(screen);
-                screen = nullptr;
-            }
-        }
-
         if (s_display) {
             lv_display_delete(s_display);
             s_display = nullptr;
@@ -192,17 +184,48 @@ namespace display {
 
         utils::log<utils::log_level_t::INFO>(TAG, "Creating UI");
 
-        create_screen_0();
-        create_screen_1();
-        create_screen_2();
-        create_screen_3();
-        create_screen_4();
-        create_screen_5();
-        create_screen_6();
-        create_screen_7();
+        // First screen
+        create_main_menu_screen();
 
-        lv_scr_load(screens[0]);
+        // Second screen
+        constexpr wifi_data_t wifi_data = {
+            .is_on = false,
+            .ssid = config::WIFI_SSID_NAME,
+            .ip = config::IP_ADDRESS // Stable. Can be hard coded
+        };
+        create_wifi_screen(wifi_data);
 
+        // Third screen
+        create_scale_screen();
+
+        // Fourth screen
+        create_speed_screen();
+
+        // Fifth screen
+        constexpr about_data_t about_data = {
+            .firmware_version = "v1.0.0", // What am I even doing
+            .steps_per_mm = 0.0f,
+            .effective_feed_rate = 0,
+            .scale = 1.0f,
+            .speed = 1.0f,
+            .file_size_bytes = config::MAX_FILE_SIZE_BYTES,
+            .fs_used_bytes = 0,
+            .fs_total_bytes = 0,
+            .ssid = config::WIFI_SSID_NAME
+        };
+        create_about_screen(about_data);
+
+        // Sixth screen
+        constexpr motion_data_t motion_data = {
+            .state = gcode::types::state_t::SLEEPING,
+            .progress_pct = 0,
+            .current_line = 0,
+            .total_lines = 0,
+            .scale = 1.0f,
+            .speed = 1.0f
+        };
+        create_motion_screen(motion_data);
+        
         // Cleanup bootup screen resources
         // The children get auto deleted when
         // the parent screen is deleted
@@ -216,6 +239,61 @@ namespace display {
         utils::log<utils::log_level_t::INFO>(TAG, "UI created");
     }
 
+    void update_ui() {
+
+    }
+
+    void send_event(const event_t& event) {
+        switch (event.event) {
+            case event_type_t::PLOTTING_PAUSED:
+                show_toast_plotting_paused();
+                break;
+
+            case event_type_t::PLOTTING_RESUMED:
+                show_toast_plotting_resumed(event.from_line);
+                break;
+
+            case event_type_t::PLOTTING_STOPPED:
+                show_modal_session_stopped(event.completed_lines, event.total_lines);
+                break;
+
+            case event_type_t::PLOTTING_COMPLETE:
+                show_toast_plotting_complete();
+                break;
+
+            case event_type_t::FILE_NOT_FOUND:
+                show_modal_file_not_found();
+                break;
+
+            case event_type_t::PARSER_ERROR:
+                show_modal_parse_error(event.line_num, event.line_str);
+                break;
+
+            case event_type_t::FILE_READ_ERROR:
+                show_modal_file_read_error();
+                break;
+
+            case event_type_t::WIFI_ENABLED:
+                show_toast_wifi_enabled();
+                break;
+
+            case event_type_t::WIFI_DISABLED:
+                show_toast_wifi_disabled();
+                break;
+
+            case event_type_t::FILE_RECEIVED:
+                show_toast_file_received();
+                break;
+
+            case event_type_t::CLEAR_ALL_POPUPS:
+                dismiss_toast();
+                dismiss_modal();
+                break;
+
+            default:
+                utils::log<utils::log_level_t::WARN>(TAG, "Invalid event");
+        }
+    }
 
     // Helper functions
     static void disp_flush_cb(lv_display_t* s_display, const lv_area_t* area, uint8_t* px_map) {
