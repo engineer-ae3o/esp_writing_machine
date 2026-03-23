@@ -15,7 +15,7 @@ namespace gcode::planner {
     struct position_t {
         float x{}, y{};
 
-        const bool operator==(const position_t& other) const {
+        bool operator==(const position_t& other) const {
             return (x == other.x) && (y == other.y);
         }
         
@@ -37,7 +37,7 @@ namespace gcode::planner {
     static inline void pen_up();
     static inline void pen_down();
     static void step_motors(const parser::param_t& param);
-    static void move_to(const position_t& final, const position_t& initial, uint32_t feed_rate = config::DEFAULT_FEED_RATE);
+    static void move_to(const position_t& final, const position_t& initial, uint32_t feed_rate);
 
     // Public API
     void init(const types::config_t& config) {
@@ -69,7 +69,7 @@ namespace gcode::planner {
 
             case parser::type_t::G28:
                 pen_up();
-                move_to(HOME_AXES, s_current);
+                move_to(HOME_AXES, s_current, config::DEFAULT_FEED_RATE);
                 return ret_t::SUCCESS;
 
             case parser::type_t::G90:
@@ -99,7 +99,7 @@ namespace gcode::planner {
     
     void reset() {
         pen_up();
-        move_to(HOME_AXES, s_current);
+        move_to(HOME_AXES, s_current, config::DEFAULT_FEED_RATE);
     }
 
     void teardown() {
@@ -133,7 +133,7 @@ namespace gcode::planner {
         s_current = final;
     }
     
-    static void move_to(const position_t& final, const position_t& initial, uint32_t feed_rate = config::DEFAULT_FEED_RATE) {
+    static void move_to(const position_t& final, const position_t& initial, uint32_t feed_rate) {
         // No movement. We are already there
         if (final == initial) return;
 
