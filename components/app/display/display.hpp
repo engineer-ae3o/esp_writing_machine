@@ -9,6 +9,7 @@
 
 #include "esp_err.h"
 
+#include <optional>
 #include <cstdint>
 
 
@@ -81,6 +82,9 @@ namespace display {
         // Required for `PLOTTING_STOPPED` event
         size_t completed_lines{};
         size_t total_lines{};
+
+        // Optional for `FILE_NOT_FOUND`, `PARSER_ERROR`, `FILE_READ_ERROR` and `PLOTTING_STOPPED` events
+        std::optional<void(*)()> on_ok{std::nullopt};
     };
 
     void send_event(const event_t& event);

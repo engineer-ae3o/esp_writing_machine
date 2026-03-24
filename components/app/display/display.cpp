@@ -19,9 +19,6 @@ namespace display {
     // Tag
     static constexpr const char TAG[]                       = "Display";
     
-    // Timeout
-    static constexpr uint32_t POPUP_TIMEOUT_US              = 2'000'000;
-    
     // Display buffer size for LVGL (40 lines worth of pixels)
     static constexpr size_t DISP_BUF_SIZE                   = config::LCD_WIDTH * 40;
     static constexpr uint16_t DISP_BOOTUP_SCREEN_TIME_MS    = 2'500;
@@ -33,14 +30,19 @@ namespace display {
     // General utilities
     static lv_display_t* s_display                          = nullptr;
     static esp_timer_handle_t s_lvgl_tick_timer             = nullptr;
-    static esp_timer_handle_t s_modal_close_timer           = nullptr;
-    static esp_timer_handle_t s_toast_close_timer           = nullptr;
     static ili9341_handle_t s_display_handle                = nullptr;
     static SemaphoreHandle_t s_display_mutex                = nullptr;
     static TimerHandle_t s_lvgl_timer_handler               = nullptr;
+
+    // Popup timers
+    static esp_timer_handle_t s_modal_close_timer           = nullptr;
+    static bool s_is_modal_popup_active                     = false;
+    static esp_timer_handle_t s_toast_close_timer           = nullptr;
+    static bool s_is_toast_popup_active                     = false;
+    static constexpr uint32_t POPUP_TIMEOUT_US              = 2'000'000;
     
     // Bootup screen
-    static lv_obj_t* s_bootup_scr                             = nullptr;
+    static lv_obj_t* s_bootup_scr                           = nullptr;
 
     // Forward declarations
     static void disp_flush_cb(lv_display_t* s_display, const lv_area_t* area, uint8_t* px_map);
@@ -112,6 +114,50 @@ namespace display {
             deinit();
             return ESP_FAIL;
         }
+
+        // Modal popup close timer
+        constexpr esp_timer_create_args_t modal_timer_args = {
+            .callback = [](void* arg) {
+                if (xSemaphoreTake(s_display_mutex, pdMS_TO_TICKS(config::TIMEOUT_MS)) != pdTRUE) return;
+                if (s_is_modal_popup_active) {
+                    dismiss_modal();
+                    s_is_modal_popup_active = false;
+                }
+                xSemaphoreGive(s_display_mutex);
+            },
+            .arg = nullptr,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "s_modal_close_timer",
+            .skip_unhandled_events = false
+        };
+        
+        ret = esp_timer_create(&modal_timer_args, &s_modal_close_timer);
+        if (ret != ESP_OK) {
+            utils::log<utils::log_level_t::ERROR>(TAG, "Failed to create modal popup close timer: %s", esp_err_to_name(ret));
+            return ret;
+        }
+
+        // Toast popup close timer
+        constexpr esp_timer_create_args_t toast_timer_args = {
+            .callback = [](void* arg) {
+                if (xSemaphoreTake(s_display_mutex, pdMS_TO_TICKS(config::TIMEOUT_MS)) != pdTRUE) return;
+                if (s_is_toast_popup_active) {
+                    dismiss_toast();
+                    s_is_toast_popup_active = false;
+                }
+                xSemaphoreGive(s_display_mutex);
+            },
+            .arg = nullptr,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "s_toast_close_timer",
+            .skip_unhandled_events = false
+        };
+        
+        ret = esp_timer_create(&toast_timer_args, &s_toast_close_timer);
+        if (ret != ESP_OK) {
+            utils::log<utils::log_level_t::ERROR>(TAG, "Failed to create toast popup close timer: %s", esp_err_to_name(ret));
+            return ret;
+        }
         
         utils::log<utils::log_level_t::INFO>(TAG, "Display interface initialized successfully");
 
@@ -137,6 +183,18 @@ namespace display {
             xTimerStop(s_lvgl_timer_handler, pdMS_TO_TICKS(config::TIMEOUT_MS));
             xTimerDelete(s_lvgl_timer_handler, pdMS_TO_TICKS(config::TIMEOUT_MS));
             s_lvgl_timer_handler = nullptr;
+        }
+        
+        if (s_modal_close_timer) {
+            esp_timer_stop(s_modal_close_timer);
+            esp_timer_delete(s_modal_close_timer);
+            s_modal_close_timer = nullptr;
+        }
+        
+        if (s_toast_close_timer) {
+            esp_timer_stop(s_toast_close_timer);
+            esp_timer_delete(s_toast_close_timer);
+            s_toast_close_timer = nullptr;
         }
 
         if (s_bootup_scr) {
@@ -177,7 +235,7 @@ namespace display {
 
         utils::log<utils::log_level_t::INFO>(TAG, "Done loading bootup screen");
     }
-    
+   
     void create_ui() {
 
         if (xSemaphoreTake(s_display_mutex, pdMS_TO_TICKS(config::TIMEOUT_MS)) != pdTRUE) return;
@@ -234,6 +292,8 @@ namespace display {
             s_bootup_scr = nullptr;
         }
 
+        load_screen(screen_t::MAIN_MENU);
+
         xSemaphoreGive(s_display_mutex);
 
         utils::log<utils::log_level_t::INFO>(TAG, "UI created");
@@ -244,6 +304,11 @@ namespace display {
     }
 
     void send_event(const event_t& event) {
+
+        if (xSemaphoreTake(s_display_mutex, pdMS_TO_TICKS(config::TIMEOUT_MS)) != pdTRUE) return;
+
+        bool is_event_toast_popup = true;
+
         switch (event.event) {
             case event_type_t::PLOTTING_PAUSED:
                 show_toast_plotting_paused();
@@ -254,7 +319,8 @@ namespace display {
                 break;
 
             case event_type_t::PLOTTING_STOPPED:
-                show_modal_session_stopped(event.completed_lines, event.total_lines);
+                show_modal_session_stopped(event.completed_lines, event.total_lines, event.on_ok.value_or(nullptr));
+                is_event_toast_popup = false;
                 break;
 
             case event_type_t::PLOTTING_COMPLETE:
@@ -262,15 +328,18 @@ namespace display {
                 break;
 
             case event_type_t::FILE_NOT_FOUND:
-                show_modal_file_not_found();
+                show_modal_file_not_found(event.on_ok.value_or(nullptr));
+                is_event_toast_popup = false;
                 break;
 
             case event_type_t::PARSER_ERROR:
-                show_modal_parse_error(event.line_num, event.line_str);
+                show_modal_parse_error(event.line_num, event.line_str, event.on_ok.value_or(nullptr));
+                is_event_toast_popup = false;
                 break;
 
             case event_type_t::FILE_READ_ERROR:
-                show_modal_file_read_error();
+                show_modal_file_read_error(event.on_ok.value_or(nullptr));
+                is_event_toast_popup = false;
                 break;
 
             case event_type_t::WIFI_ENABLED:
@@ -286,13 +355,37 @@ namespace display {
                 break;
 
             case event_type_t::CLEAR_ALL_POPUPS:
-                dismiss_toast();
-                dismiss_modal();
-                break;
+                if (s_is_toast_popup_active) {
+                    dismiss_toast();
+                    esp_timer_stop(s_toast_close_timer);
+                    s_is_toast_popup_active = false;
+                }
+                if (s_is_modal_popup_active) {
+                    dismiss_modal();
+                    esp_timer_stop(s_modal_close_timer);
+                    s_is_modal_popup_active = false;
+                }
+                xSemaphoreGive(s_display_mutex);
+                return;
 
             default:
                 utils::log<utils::log_level_t::WARN>(TAG, "Invalid event");
+                xSemaphoreGive(s_display_mutex);
+                return;
         }
+
+        if (is_event_toast_popup) {
+            esp_timer_stop(s_toast_close_timer);
+            esp_timer_start_once(s_toast_close_timer, POPUP_TIMEOUT_US);
+            s_is_toast_popup_active = true;
+
+        } else {
+            esp_timer_stop(s_modal_close_timer);
+            esp_timer_start_once(s_modal_close_timer, POPUP_TIMEOUT_US);
+            s_is_modal_popup_active = true;
+        }
+
+        xSemaphoreGive(s_display_mutex);
     }
 
     // Helper functions
