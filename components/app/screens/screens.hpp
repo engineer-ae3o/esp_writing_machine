@@ -5,6 +5,7 @@
 #include "lvgl.h"
 
 #include "controller.hpp"
+#include "config.hpp"
 
 #include <cstdint>
 #include <cstddef>

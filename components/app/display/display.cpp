@@ -3,7 +3,6 @@
 
 #include "vhorde_logo.hpp"
 #include "display.hpp"
-#include "screens.hpp"
 #include "colors.hpp"
 #include "config.hpp"
 #include "utils.hpp"
@@ -45,7 +44,7 @@ namespace display {
     static lv_obj_t* s_bootup_scr                           = nullptr;
 
     // Forward declarations
-    static void disp_flush_cb(lv_display_t* s_display, const lv_area_t* area, uint8_t* px_map);
+    static void disp_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* px_map);
     static void create_animated_loading_bar(lv_obj_t* parent, uint8_t w, uint8_t h, uint16_t time_ms);
 
     // Public functions
@@ -206,10 +205,13 @@ namespace display {
             lv_display_delete(s_display);
             s_display = nullptr;
         }
-        
-        utils::log<utils::log_level_t::INFO>(TAG, "Display interface deinitialized");
 
         xSemaphoreGive(s_display_mutex);
+        
+        vSemaphoreDelete(s_display_mutex);
+        s_display_mutex = nullptr;
+        
+        utils::log<utils::log_level_t::INFO>(TAG, "Display interface deinitialized");
 
         return ESP_OK;
     }
@@ -226,9 +228,7 @@ namespace display {
         lv_obj_t* image = lv_image_create(s_bootup_scr);
         lv_image_set_src(image, &vhorde_logo);
         lv_obj_align(image, LV_ALIGN_TOP_MID, 0, 20);
-
-        lv_screen_load(s_bootup_scr);
-
+        
         xSemaphoreGive(s_display_mutex);
 
         create_animated_loading_bar(s_bootup_scr, 180, 35, DISP_BOOTUP_SCREEN_TIME_MS);
@@ -297,10 +297,6 @@ namespace display {
         xSemaphoreGive(s_display_mutex);
 
         utils::log<utils::log_level_t::INFO>(TAG, "UI created");
-    }
-
-    void update_ui() {
-
     }
 
     void send_event(const event_t& event) {
@@ -389,7 +385,7 @@ namespace display {
     }
 
     // Helper functions
-    static void disp_flush_cb(lv_display_t* s_display, const lv_area_t* area, uint8_t* px_map) {
+    static void disp_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* px_map) {
 
         const uint16_t width = area->x2 - area->x1 + 1;
         const uint16_t height = area->y2 - area->y1 + 1;
@@ -400,13 +396,13 @@ namespace display {
         esp_err_t ret = ili9341_flush(area->x1, area->y1, area->x2, area->y2, px_data, pixel_count, 
             [](void* user_data, esp_err_t ret) {
                 auto display = static_cast<lv_display_t*>(user_data);
-                lv_disp_flush_ready(display);
+                lv_display_flush_ready(display);
 
                 if (ret != ESP_OK) {
                     utils::log<utils::log_level_t::WARN>(TAG, "Flush completed with error: %s", esp_err_to_name(ret));
                 }
             },
-        s_display, s_display_handle);
+        display, s_display_handle);
         if (ret != ESP_OK) {
             utils::log<utils::log_level_t::ERROR>(TAG, "Flush failed: %s", esp_err_to_name(ret));
         }
@@ -423,7 +419,7 @@ namespace display {
         lv_obj_align(loading_bar, LV_ALIGN_TOP_MID, 0, 270);
         lv_bar_set_value(loading_bar, 0, LV_ANIM_ON);
 
-        lv_scr_load(parent);
+        lv_screen_load(parent);
 
         lv_anim_t bar_anim{};
 

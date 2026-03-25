@@ -1,7 +1,6 @@
 #include "screens.hpp"
-#include "utils.hpp"
-#include "config.hpp"
 #include "colors.hpp"
+#include "utils.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -1020,7 +1019,7 @@ namespace display {
                    "Returning to menu...", C_GREEN_TXT_DK);
     }
 
-    void show_toast_wifi_enabled(const char* ssid = config::WIFI_SSID_NAME, const char* ip = config::IP_ADDRESS) {
+    void show_toast_wifi_enabled(const char* ssid, const char* ip) {
         lv_obj_t* t = make_toast_base(C_BLUE_BG, C_BLUE);
         char sub[48];
         snprintf(sub, sizeof(sub), "AP: %s  \xc2\xb7  %s", ssid, ip);
